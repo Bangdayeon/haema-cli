@@ -4,6 +4,7 @@ import {
   type ClaudeFileUpload,
 } from "../claudeFilesClient.js";
 import { discoverClaudeFiles } from "../discoverClaudeFiles.js";
+import { loadCodexSessions } from "../loadCodexSessions.js";
 import { loadProjectSessions } from "../loadProjectSessions.js";
 import { loadSessions } from "../loadSessions.js";
 import { readClaudeFile } from "../readClaudeFile.js";
@@ -16,10 +17,16 @@ import {
   postBatch,
   readUploadConfig,
   type SessionPayload,
+  type UploadBatch,
   type UploadConfig,
 } from "../uploadClient.js";
 import { watchDirChanges } from "../watchDir.js";
 import { watchFileChanges } from "../watchFile.js";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import { stat } from "node:fs/promises";
+
+const CODEX_SESSIONS_ROOT = join(homedir(), ".codex", "sessions");
 
 type UploadOptions = {
   watch?: boolean;
@@ -32,32 +39,21 @@ export async function uploadCommand(file: string | undefined, options: UploadOpt
   const isProject = options.project !== undefined;
   const projectInput = typeof options.project === "string" ? options.project : undefined;
 
-  let source: string;
-  let load: () => Promise<Session[]>;
-  let filterLabel = "";
-  let claudeFilesCwd: string | undefined;
-  if (isProject) {
-    const resolved = await resolveProjectDir(projectInput);
-    source = resolved.dir;
-    load = () => loadProjectSessions(resolved.dir, { filterCwd: resolved.filterCwd });
-    if (resolved.filterCwd) {
-      filterLabel = `\ncwd 필터: ${resolved.filterCwd} (이 cwd 의 이벤트가 있는 세션만 업로드)`;
-      claudeFilesCwd = resolved.filterCwd;
-    }
-  } else {
-    source = await resolveSessionPath(file);
-    load = () => loadSessions(source);
-  }
-
   console.log(`업로드 대상: ${config.url}`);
   if (config.apiKey) console.log("Authorization: Bearer ***");
-  console.log(`소스: ${source}${filterLabel}`);
+
+  if (isProject) {
+    await uploadProject(projectInput, options, config);
+    return;
+  }
+
+  const source = await resolveSessionPath(file);
+  const load = () => loadSessions(source);
+  console.log(`소스: ${source}`);
 
   const sent = new Map<string, number>();
-  const enableClaudeFiles = options.claudeFiles !== false && !!claudeFilesCwd;
-
   try {
-    await flushOnce(load, source, config, sent);
+    await flushOnce(load, source, "CLAUDE", config, sent);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (options.watch) {
@@ -67,39 +63,120 @@ export async function uploadCommand(file: string | undefined, options: UploadOpt
     }
   }
 
-  if (enableClaudeFiles && claudeFilesCwd) {
+  if (!options.watch) return;
+
+  console.log(`\n(watch) ${source} 감지 중... Ctrl+C 로 종료`);
+  watchFileChanges(source, async () => {
+    const t = new Date().toLocaleTimeString();
+    try {
+      await flushOnce(load, source, "CLAUDE", config, sent, `[${t}] `);
+    } catch (err) {
+      console.error(`[${t}] 업로드 실패: ${err instanceof Error ? err.message : err}`);
+    }
+  });
+}
+
+async function uploadProject(
+  projectInput: string | undefined,
+  options: UploadOptions,
+  config: UploadConfig
+): Promise<void> {
+  const cwd = projectInput ? resolve(projectInput) : process.cwd();
+
+  // Claude 세션 디렉토리
+  let claudeSource: string | null = null;
+  let claudeLoad: (() => Promise<Session[]>) | null = null;
+  let claudeFilesCwd: string | undefined;
+  try {
+    const resolved = await resolveProjectDir(projectInput);
+    claudeSource = resolved.dir;
+    claudeLoad = () => loadProjectSessions(resolved.dir, { filterCwd: resolved.filterCwd });
+    if (resolved.filterCwd) {
+      claudeFilesCwd = resolved.filterCwd;
+      console.log(`Claude 소스: ${resolved.dir}\ncwd 필터: ${resolved.filterCwd}`);
+    } else {
+      console.log(`Claude 소스: ${resolved.dir}`);
+    }
+  } catch {
+    // Claude Code 세션 없음 — Codex 가 있으면 계속
+  }
+
+  // Codex 세션 디렉토리
+  let codexSource: string | null = null;
+  let codexLoad: (() => Promise<Session[]>) | null = null;
+  if (await isDir(CODEX_SESSIONS_ROOT)) {
+    codexSource = CODEX_SESSIONS_ROOT;
+    codexLoad = () => loadCodexSessions(CODEX_SESSIONS_ROOT, cwd);
+    console.log(`Codex 소스: ${CODEX_SESSIONS_ROOT} (cwd 필터: ${cwd})`);
+  }
+
+  if (!claudeSource && !codexSource) {
+    throw new Error(
+      `Claude Code 또는 Codex CLI 세션을 찾지 못했어요.\n  cwd: ${cwd}`
+    );
+  }
+
+  const sentClaude = new Map<string, number>();
+  const sentCodex = new Map<string, number>();
+
+  const flushAll = async (prefix = ""): Promise<void> => {
+    if (claudeSource && claudeLoad) {
+      try {
+        await flushOnce(claudeLoad, claudeSource, "CLAUDE", config, sentClaude, prefix);
+      } catch (err) {
+        console.error(`${prefix}Claude 업로드 실패: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    if (codexSource && codexLoad) {
+      try {
+        await flushOnce(codexLoad, codexSource, "CODEX", config, sentCodex, prefix);
+      } catch (err) {
+        console.error(`${prefix}Codex 업로드 실패: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  };
+
+  await flushAll();
+
+  if (options.claudeFiles !== false && claudeFilesCwd) {
     try {
       await uploadClaudeFilesOnce(claudeFilesCwd);
     } catch (err) {
-      // claude-files 실패해도 세션 업로드는 이미 완료. warning 만.
       console.error(`AI 파일 업로드 실패 (세션은 OK): ${err instanceof Error ? err.message : err}`);
     }
   }
 
   if (!options.watch) return;
 
-  const label = isProject ? `${source} 디렉토리` : source;
-  console.log(`\n(watch) ${label} 감지 중... Ctrl+C 로 종료`);
+  console.log(`\n(watch) 감지 중... Ctrl+C 로 종료`);
 
-  const onChange = async (): Promise<void> => {
+  const makeOnChange = (label: string) => async (): Promise<void> => {
     const t = new Date().toLocaleTimeString();
-    try {
-      await flushOnce(load, source, config, sent, `[${t}] `);
-    } catch (err) {
-      console.error(`[${t}] 업로드 실패: ${err instanceof Error ? err.message : err}`);
-    }
+    await flushAll(`[${t}][${label}] `);
   };
 
-  if (isProject) {
-    watchDirChanges(source, onChange, { pattern: /\.jsonl$/ });
-  } else {
-    watchFileChanges(source, onChange);
+  if (claudeSource) {
+    watchDirChanges(claudeSource, makeOnChange("Claude"), { pattern: /\.jsonl$/ });
+  }
+  if (codexSource) {
+    // Codex 세션은 날짜 서브디렉터리로 구성 — 상위 디렉터리의 서브디렉터리 변경을 감지
+    watchDirChanges(codexSource, makeOnChange("Codex"));
+  }
+}
+
+async function isDir(path: string): Promise<boolean> {
+  try {
+    const s = await stat(path);
+    return s.isDirectory();
+  } catch {
+    return false;
   }
 }
 
 async function flushOnce(
   load: () => Promise<Session[]>,
   source: string,
+  agent: UploadBatch["agent"],
   config: UploadConfig,
   sent: Map<string, number>,
   prefix = ""
@@ -146,7 +223,7 @@ async function flushOnce(
           try {
             await postBatch(
               config,
-              { source, sessions: chunk },
+              { source, agent, sessions: chunk },
               multi ? { retryLog: (msg) => console.error(`  ${tag} ${msg}`) } : undefined
             );
           } catch (err) {
