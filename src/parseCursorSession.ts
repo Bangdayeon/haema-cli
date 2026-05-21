@@ -50,7 +50,7 @@ export function parseCursorSession(text: string, sessionId: string, cwd?: string
         parentUuid: prevUuid ?? undefined,
         sessionId,
         cwd,
-        message: { role: "assistant", content: mapContentBlocks(rawContent) },
+        message: { role: "assistant", content: mapContentBlocks(rawContent), model: "cursor" },
       });
     }
 
