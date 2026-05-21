@@ -20,7 +20,7 @@ export async function loadCursorSessions(filterCwd?: string): Promise<Session[]>
     const sessionId = basename(filePath, ".jsonl");
     try {
       const text = await readFile(filePath, "utf8");
-      const session = parseCursorSession(text, sessionId);
+      const session = parseCursorSession(text, sessionId, filterCwd);
       if (session) sessions.push(session);
     } catch (err) {
       console.error(`Cursor 스킵: ${filePath} (${err instanceof Error ? err.message : err})`);

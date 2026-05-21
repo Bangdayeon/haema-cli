@@ -1,10 +1,14 @@
 import { buildSession } from "./buildSession.js";
 import type { ContentBlock, RawEvent } from "./types.js";
 
-export function parseCursorSession(text: string, sessionId: string): ReturnType<typeof buildSession> | null {
+export function parseCursorSession(text: string, sessionId: string, cwd?: string): ReturnType<typeof buildSession> | null {
   const events: RawEvent[] = [];
   let prevUuid: string | null = null;
   let lineIndex = 0;
+
+  const metaUuid = `${sessionId}:meta`;
+  events.push({ type: "session_meta", uuid: metaUuid, sessionId, cwd });
+  prevUuid = metaUuid;
 
   for (const raw of text.split("\n")) {
     const line = raw.trim();
@@ -36,6 +40,7 @@ export function parseCursorSession(text: string, sessionId: string): ReturnType<
         parentUuid: prevUuid ?? undefined,
         sessionId,
         timestamp: extractTimestamp(rawText),
+        cwd,
         message: { role: "user", content: cleanUserText(rawText) },
       });
     } else {
@@ -44,6 +49,7 @@ export function parseCursorSession(text: string, sessionId: string): ReturnType<
         uuid,
         parentUuid: prevUuid ?? undefined,
         sessionId,
+        cwd,
         message: { role: "assistant", content: mapContentBlocks(rawContent) },
       });
     }

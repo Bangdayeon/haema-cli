@@ -60,11 +60,11 @@ export function parseGeminiSession(text: string, cwd?: string): Session | null {
   for (const id of idOrder) {
     const g = geminiById.get(id);
     if (g) {
-      prevUuid = emitGeminiTurn(g, sessionId, prevUuid, events);
+      prevUuid = emitGeminiTurn(g, sessionId, prevUuid, events, cwd);
       continue;
     }
     const u = userById.get(id);
-    if (u) prevUuid = emitUserTurn(u, sessionId, prevUuid, events);
+    if (u) prevUuid = emitUserTurn(u, sessionId, prevUuid, events, cwd);
   }
 
   return buildSession(sessionId, events);
@@ -75,6 +75,7 @@ function emitGeminiTurn(
   sessionId: string,
   prevUuid: string | null,
   events: RawEvent[],
+  cwd?: string,
 ): string {
   const uuid = `${sessionId}:${turn.id}`;
   const toolCalls = turn.toolCalls ?? [];
@@ -94,6 +95,7 @@ function emitGeminiTurn(
     parentUuid: prevUuid ?? undefined,
     sessionId,
     timestamp: turn.timestamp,
+    cwd,
     message: {
       role: "assistant",
       content: contentBlocks,
@@ -139,6 +141,7 @@ function emitUserTurn(
   sessionId: string,
   prevUuid: string | null,
   events: RawEvent[],
+  cwd?: string,
 ): string {
   const uuid = `${sessionId}:${turn.id}`;
   const text = Array.isArray(turn.content)
@@ -154,6 +157,7 @@ function emitUserTurn(
     parentUuid: prevUuid ?? undefined,
     sessionId,
     timestamp: turn.timestamp,
+    cwd,
     message: { role: "user", content: text },
   });
   return uuid;
