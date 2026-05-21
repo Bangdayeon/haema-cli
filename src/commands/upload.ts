@@ -5,6 +5,7 @@ import {
 } from "../claudeFilesClient.js";
 import { discoverClaudeFiles } from "../discoverClaudeFiles.js";
 import { loadCodexSessions } from "../loadCodexSessions.js";
+import { loadCursorSessions } from "../loadCursorSessions.js";
 import { loadGeminiSessions } from "../loadGeminiSessions.js";
 import { loadProjectSessions } from "../loadProjectSessions.js";
 import { loadSessions } from "../loadSessions.js";
@@ -29,6 +30,7 @@ import { join, resolve } from "node:path";
 import { stat } from "node:fs/promises";
 
 const CODEX_SESSIONS_ROOT = join(homedir(), ".codex", "sessions");
+const CURSOR_PROJECTS_ROOT = join(homedir(), ".cursor", "projects");
 const GEMINI_TMP_ROOT = join(homedir(), ".gemini", "tmp");
 
 type UploadOptions = {
@@ -122,15 +124,25 @@ async function uploadProject(
     console.log(`Gemini 소스: ${GEMINI_TMP_ROOT} (cwd 필터: ${cwd})`);
   }
 
-  if (!claudeSource && !codexSource && !geminiSource) {
+  // Cursor 세션 디렉토리
+  let cursorSource: string | null = null;
+  let cursorLoad: (() => Promise<Session[]>) | null = null;
+  if (await isDir(CURSOR_PROJECTS_ROOT)) {
+    cursorSource = CURSOR_PROJECTS_ROOT;
+    cursorLoad = () => loadCursorSessions(cwd);
+    console.log(`Cursor 소스: ${CURSOR_PROJECTS_ROOT} (cwd 필터: ${cwd})`);
+  }
+
+  if (!claudeSource && !codexSource && !geminiSource && !cursorSource) {
     throw new Error(
-      `Claude Code, Codex CLI 또는 Gemini CLI 세션을 찾지 못했어요.\n  cwd: ${cwd}`
+      `Claude Code, Codex CLI, Gemini CLI 또는 Cursor 세션을 찾지 못했어요.\n  cwd: ${cwd}`
     );
   }
 
   const sentClaude = claudeSource ? await loadState(claudeSource) : new Map<string, number>();
   const sentCodex = codexSource ? await loadState(codexSource) : new Map<string, number>();
   const sentGemini = geminiSource ? await loadState(geminiSource) : new Map<string, number>();
+  const sentCursor = cursorSource ? await loadState(cursorSource) : new Map<string, number>();
 
   const flushAll = async (prefix = ""): Promise<void> => {
     if (claudeSource && claudeLoad) {
@@ -155,6 +167,14 @@ async function uploadProject(
         await saveState(geminiSource, sentGemini);
       } catch (err) {
         console.error(`${prefix}Gemini 업로드 실패: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    if (cursorSource && cursorLoad) {
+      try {
+        await flushOnce(cursorLoad, cursorSource, "CURSOR", config, sentCursor, prefix);
+        await saveState(cursorSource, sentCursor);
+      } catch (err) {
+        console.error(`${prefix}Cursor 업로드 실패: ${err instanceof Error ? err.message : err}`);
       }
     }
   };
@@ -187,6 +207,9 @@ async function uploadProject(
   }
   if (geminiSource) {
     watchDirChanges(geminiSource, makeOnChange("Gemini"), { pattern: /\.jsonl$/ });
+  }
+  if (cursorSource) {
+    watchDirChanges(cursorSource, makeOnChange("Cursor"), { pattern: /\.jsonl$/ });
   }
 }
 
