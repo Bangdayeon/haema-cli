@@ -5,6 +5,7 @@ import {
 } from "../claudeFilesClient.js";
 import { discoverClaudeFiles } from "../discoverClaudeFiles.js";
 import { loadCodexSessions } from "../loadCodexSessions.js";
+import { loadGeminiSessions } from "../loadGeminiSessions.js";
 import { loadProjectSessions } from "../loadProjectSessions.js";
 import { loadSessions } from "../loadSessions.js";
 import { readClaudeFile } from "../readClaudeFile.js";
@@ -28,6 +29,7 @@ import { join, resolve } from "node:path";
 import { stat } from "node:fs/promises";
 
 const CODEX_SESSIONS_ROOT = join(homedir(), ".codex", "sessions");
+const GEMINI_TMP_ROOT = join(homedir(), ".gemini", "tmp");
 
 type UploadOptions = {
   watch?: boolean;
@@ -111,14 +113,24 @@ async function uploadProject(
     console.log(`Codex 소스: ${CODEX_SESSIONS_ROOT} (cwd 필터: ${cwd})`);
   }
 
-  if (!claudeSource && !codexSource) {
+  // Gemini 세션 디렉토리
+  let geminiSource: string | null = null;
+  let geminiLoad: (() => Promise<Session[]>) | null = null;
+  if (await isDir(GEMINI_TMP_ROOT)) {
+    geminiSource = GEMINI_TMP_ROOT;
+    geminiLoad = () => loadGeminiSessions(cwd);
+    console.log(`Gemini 소스: ${GEMINI_TMP_ROOT} (cwd 필터: ${cwd})`);
+  }
+
+  if (!claudeSource && !codexSource && !geminiSource) {
     throw new Error(
-      `Claude Code 또는 Codex CLI 세션을 찾지 못했어요.\n  cwd: ${cwd}`
+      `Claude Code, Codex CLI 또는 Gemini CLI 세션을 찾지 못했어요.\n  cwd: ${cwd}`
     );
   }
 
   const sentClaude = claudeSource ? await loadState(claudeSource) : new Map<string, number>();
   const sentCodex = codexSource ? await loadState(codexSource) : new Map<string, number>();
+  const sentGemini = geminiSource ? await loadState(geminiSource) : new Map<string, number>();
 
   const flushAll = async (prefix = ""): Promise<void> => {
     if (claudeSource && claudeLoad) {
@@ -135,6 +147,14 @@ async function uploadProject(
         await saveState(codexSource, sentCodex);
       } catch (err) {
         console.error(`${prefix}Codex 업로드 실패: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    if (geminiSource && geminiLoad) {
+      try {
+        await flushOnce(geminiLoad, geminiSource, "GEMINI", config, sentGemini, prefix);
+        await saveState(geminiSource, sentGemini);
+      } catch (err) {
+        console.error(`${prefix}Gemini 업로드 실패: ${err instanceof Error ? err.message : err}`);
       }
     }
   };
@@ -164,6 +184,9 @@ async function uploadProject(
   if (codexSource) {
     // Codex 세션은 날짜 서브디렉터리로 구성 — 상위 디렉터리의 서브디렉터리 변경을 감지
     watchDirChanges(codexSource, makeOnChange("Codex"));
+  }
+  if (geminiSource) {
+    watchDirChanges(geminiSource, makeOnChange("Gemini"), { pattern: /\.jsonl$/ });
   }
 }
 
