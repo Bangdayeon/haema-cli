@@ -20,6 +20,7 @@ import {
   type UploadBatch,
   type UploadConfig,
 } from "../uploadClient.js";
+import { loadState, saveState } from "../uploadState.js";
 import { watchDirChanges } from "../watchDir.js";
 import { watchFileChanges } from "../watchFile.js";
 import { homedir } from "node:os";
@@ -116,13 +117,14 @@ async function uploadProject(
     );
   }
 
-  const sentClaude = new Map<string, number>();
-  const sentCodex = new Map<string, number>();
+  const sentClaude = claudeSource ? await loadState(claudeSource) : new Map<string, number>();
+  const sentCodex = codexSource ? await loadState(codexSource) : new Map<string, number>();
 
   const flushAll = async (prefix = ""): Promise<void> => {
     if (claudeSource && claudeLoad) {
       try {
         await flushOnce(claudeLoad, claudeSource, "CLAUDE", config, sentClaude, prefix);
+        await saveState(claudeSource, sentClaude);
       } catch (err) {
         console.error(`${prefix}Claude 업로드 실패: ${err instanceof Error ? err.message : err}`);
       }
@@ -130,6 +132,7 @@ async function uploadProject(
     if (codexSource && codexLoad) {
       try {
         await flushOnce(codexLoad, codexSource, "CODEX", config, sentCodex, prefix);
+        await saveState(codexSource, sentCodex);
       } catch (err) {
         console.error(`${prefix}Codex 업로드 실패: ${err instanceof Error ? err.message : err}`);
       }
