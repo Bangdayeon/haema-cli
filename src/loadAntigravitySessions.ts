@@ -15,22 +15,32 @@ const ANTIGRAVITY_LAST_CONVS = join(
 const TRANSCRIPT_PATH = ".system_generated/logs/transcript.jsonl";
 
 export async function loadAntigravitySessions(filterCwd?: string): Promise<Session[]> {
+  // last_conversations.json은 workspace당 마지막 세션만 추적 — hint 용도로만 사용
   const cwdBySessionId = await readLastConversations();
   const sessionDirs = await listSessionDirs(ANTIGRAVITY_BRAIN_ROOT);
 
   const sessions: Session[] = [];
   for (const sessionId of sessionDirs) {
-    const cwd = cwdBySessionId.get(sessionId);
-    if (filterCwd && cwd !== filterCwd) continue;
-
+    const hintCwd = cwdBySessionId.get(sessionId);
     const transcriptPath = join(ANTIGRAVITY_BRAIN_ROOT, sessionId, TRANSCRIPT_PATH);
+    let text: string;
     try {
-      const text = await readFile(transcriptPath, "utf8");
-      const session = parseAntigravitySession(text, sessionId, cwd);
-      if (session) sessions.push(session);
+      text = await readFile(transcriptPath, "utf8");
     } catch {
-      // transcript 없는 세션은 스킵
+      continue;
     }
+
+    // last_conversations.json 힌트 우선, 없으면 transcript에서 직접 추출
+    const session = parseAntigravitySession(text, sessionId, hintCwd);
+    if (!session) continue;
+
+    // cwd 필터 적용 (session_meta 이벤트의 cwd 기준)
+    if (filterCwd) {
+      const resolvedCwd = session.events.find((e) => e.cwd)?.cwd;
+      if (resolvedCwd !== filterCwd) continue;
+    }
+
+    sessions.push(session);
   }
 
   sessions.sort((a, b) => (a.startedAt ?? "").localeCompare(b.startedAt ?? ""));
