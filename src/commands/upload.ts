@@ -4,6 +4,7 @@ import {
   type ClaudeFileUpload,
 } from "../claudeFilesClient.js";
 import { discoverClaudeFiles } from "../discoverClaudeFiles.js";
+import { loadAntigravitySessions } from "../loadAntigravitySessions.js";
 import { loadCodexSessions } from "../loadCodexSessions.js";
 import { loadCursorSessions } from "../loadCursorSessions.js";
 import { loadGeminiSessions } from "../loadGeminiSessions.js";
@@ -29,6 +30,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { stat } from "node:fs/promises";
 
+const ANTIGRAVITY_BRAIN_ROOT = join(homedir(), ".gemini", "antigravity-cli", "brain");
 const CODEX_SESSIONS_ROOT = join(homedir(), ".codex", "sessions");
 const CURSOR_PROJECTS_ROOT = join(homedir(), ".cursor", "projects");
 const GEMINI_TMP_ROOT = join(homedir(), ".gemini", "tmp");
@@ -133,9 +135,18 @@ async function uploadProject(
     console.log(`Cursor 소스: ${CURSOR_PROJECTS_ROOT} (cwd 필터: ${cwd})`);
   }
 
-  if (!claudeSource && !codexSource && !geminiSource && !cursorSource) {
+  // Antigravity 세션 디렉토리
+  let antigravitySource: string | null = null;
+  let antigravityLoad: (() => Promise<Session[]>) | null = null;
+  if (await isDir(ANTIGRAVITY_BRAIN_ROOT)) {
+    antigravitySource = ANTIGRAVITY_BRAIN_ROOT;
+    antigravityLoad = () => loadAntigravitySessions(cwd);
+    console.log(`Antigravity 소스: ${ANTIGRAVITY_BRAIN_ROOT} (cwd 필터: ${cwd})`);
+  }
+
+  if (!claudeSource && !codexSource && !geminiSource && !cursorSource && !antigravitySource) {
     throw new Error(
-      `Claude Code, Codex CLI, Gemini CLI 또는 Cursor 세션을 찾지 못했어요.\n  cwd: ${cwd}`
+      `Claude Code, Codex CLI, Gemini CLI, Cursor 또는 Antigravity 세션을 찾지 못했어요.\n  cwd: ${cwd}`
     );
   }
 
@@ -143,6 +154,7 @@ async function uploadProject(
   const sentCodex = codexSource ? await loadState(codexSource) : new Map<string, number>();
   const sentGemini = geminiSource ? await loadState(geminiSource) : new Map<string, number>();
   const sentCursor = cursorSource ? await loadState(cursorSource) : new Map<string, number>();
+  const sentAntigravity = antigravitySource ? await loadState(antigravitySource) : new Map<string, number>();
 
   const flushAll = async (prefix = ""): Promise<void> => {
     if (claudeSource && claudeLoad) {
@@ -175,6 +187,14 @@ async function uploadProject(
         await saveState(cursorSource, sentCursor);
       } catch (err) {
         console.error(`${prefix}Cursor 업로드 실패: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    if (antigravitySource && antigravityLoad) {
+      try {
+        await flushOnce(antigravityLoad, antigravitySource, "ANTIGRAVITY", config, sentAntigravity, prefix);
+        await saveState(antigravitySource, sentAntigravity);
+      } catch (err) {
+        console.error(`${prefix}Antigravity 업로드 실패: ${err instanceof Error ? err.message : err}`);
       }
     }
   };
@@ -210,6 +230,9 @@ async function uploadProject(
   }
   if (cursorSource) {
     watchDirChanges(cursorSource, makeOnChange("Cursor"), { pattern: /\.jsonl$/ });
+  }
+  if (antigravitySource) {
+    watchDirChanges(antigravitySource, makeOnChange("Antigravity"), { pattern: /transcript\.jsonl$/ });
   }
 }
 

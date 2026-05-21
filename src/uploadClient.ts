@@ -103,7 +103,7 @@ function formatMs(ms: number): string {
 
 export type UploadBatch = {
   source: string;
-  agent?: "CLAUDE" | "CODEX" | "CURSOR" | "GEMINI";
+  agent?: "CLAUDE" | "CODEX" | "CURSOR" | "GEMINI" | "ANTIGRAVITY";
   sessions: SessionPayload[];
 };
 
