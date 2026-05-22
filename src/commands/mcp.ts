@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -8,10 +9,15 @@ import { startHttp, startStdio } from "../mcp/server.js";
 const DEFAULT_HTTP_PORT = 5200;
 const VOTRA_MARKER = "<!-- votra-memory -->";
 
-const MCP_SERVER_BLOCK = {
-  command: "votra",
-  args: ["mcp", "start", "--stdio"],
-};
+function resolveMcpServerBlock(): { command: string; args: string[] } {
+  try {
+    const full = execSync("which votra", { encoding: "utf8" }).trim();
+    if (full) return { command: full, args: ["mcp", "start", "--stdio"] };
+  } catch {
+    // PATH에서 못 찾으면 그냥 votra 사용
+  }
+  return { command: "votra", args: ["mcp", "start", "--stdio"] };
+}
 
 const WORKFLOW_INSTRUCTION = `
 ${VOTRA_MARKER}
@@ -88,11 +94,12 @@ export async function mcpCommand(
 
 async function installCommand(forFlag?: string): Promise<void> {
   const targets = parseTargets(forFlag ?? "claude");
+  const mcpServerBlock = resolveMcpServerBlock();
 
   console.log(`\n=== votra-memory MCP 설치 (${targets.map((t) => TOOL_CONFIGS[t].name).join(", ")}) ===\n`);
 
   for (const tool of targets) {
-    await configureTool(tool);
+    await configureTool(tool, mcpServerBlock);
   }
 
   console.log("\n✅ 설치 완료! 대상 도구를 재시작하면 새 세션에서 자동으로 브리핑이 시작돼요.");
@@ -110,27 +117,27 @@ function parseTargets(flag: string): ToolKind[] {
   return parts;
 }
 
-async function configureTool(tool: ToolKind): Promise<void> {
+async function configureTool(tool: ToolKind, mcpServerBlock: { command: string; args: string[] }): Promise<void> {
   const cfg = TOOL_CONFIGS[tool];
   console.log(`\n── ${cfg.name} ──`);
 
   if (tool === "claude") {
-    await injectMcpJson(cfg.mcpConfigPath, "Claude Code");
+    await injectMcpJson(cfg.mcpConfigPath, "Claude Code", mcpServerBlock);
     await injectInstruction(cfg.instructionPath, WORKFLOW_INSTRUCTION, "CLAUDE.md");
   } else if (tool === "cursor") {
-    await injectMcpJson(cfg.mcpConfigPath, "Cursor");
+    await injectMcpJson(cfg.mcpConfigPath, "Cursor", mcpServerBlock);
     await injectCursorRule(cfg.instructionPath);
   } else if (tool === "gemini") {
-    await injectMcpJson(cfg.mcpConfigPath, "Gemini settings.json");
+    await injectMcpJson(cfg.mcpConfigPath, "Gemini settings.json", mcpServerBlock);
     await injectInstruction(cfg.instructionPath, WORKFLOW_INSTRUCTION, "GEMINI.md");
   } else if (tool === "codex") {
-    await injectCodexConfig(cfg.mcpConfigPath);
+    await injectCodexConfig(cfg.mcpConfigPath, mcpServerBlock);
     await injectInstruction(cfg.instructionPath, WORKFLOW_INSTRUCTION, "AGENTS.md");
   }
 }
 
 // JSON 기반 MCP 설정 파일 (Cursor, Gemini)
-async function injectMcpJson(filePath: string, label: string): Promise<void> {
+async function injectMcpJson(filePath: string, label: string, mcpServerBlock: { command: string; args: string[] }): Promise<void> {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
 
@@ -148,7 +155,7 @@ async function injectMcpJson(filePath: string, label: string): Promise<void> {
       return;
     }
 
-    servers["votra-memory"] = MCP_SERVER_BLOCK;
+    servers["votra-memory"] = mcpServerBlock;
     existing.mcpServers = servers;
     await fs.writeFile(filePath, JSON.stringify(existing, null, 2) + "\n", "utf8");
     console.log(`  [완료] ${filePath} 에 votra-memory 서버를 추가했어요.`);
@@ -185,7 +192,7 @@ ${WORKFLOW_INSTRUCTION}`;
 }
 
 // Codex YAML config (mcp_servers 블록 추가)
-async function injectCodexConfig(filePath: string): Promise<void> {
+async function injectCodexConfig(filePath: string, mcpServerBlock: { command: string; args: string[] }): Promise<void> {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
 
@@ -204,8 +211,8 @@ async function injectCodexConfig(filePath: string): Promise<void> {
     const block = `
 mcp_servers:
   votra-memory:
-    command: votra
-    args: [mcp, start, --stdio]
+    command: ${mcpServerBlock.command}
+    args: [${mcpServerBlock.args.join(", ")}]
 `;
     await fs.appendFile(filePath, block, "utf8");
     console.log(`  [완료] ${filePath} 에 votra-memory 서버를 추가했어요.`);
