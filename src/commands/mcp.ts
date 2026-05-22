@@ -3,7 +3,6 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 import { readMcpConfig } from "../mcp/mcpClient.js";
-import { resolveOrInitProject } from "../mcp/resolveProjectId.js";
 import { startHttp, startStdio } from "../mcp/server.js";
 
 const DEFAULT_HTTP_PORT = 5200;
@@ -73,15 +72,14 @@ export async function mcpCommand(
 
   const config = await readMcpConfig();
   const cwd = options.cwd ?? process.cwd();
-  const projectId = await resolveOrInitProject(cwd, config);
 
   if (options.stdio) {
-    await startStdio(projectId, config);
+    await startStdio(config, cwd);
     return;
   }
 
   const port = options.port ?? DEFAULT_HTTP_PORT;
-  await startHttp(port, projectId, config);
+  await startHttp(port, config, cwd);
 }
 
 async function installCommand(forFlag?: string): Promise<void> {

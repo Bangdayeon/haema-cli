@@ -6,7 +6,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 
 import type { McpConfig } from "./mcpClient.js";
-import { resolveProject } from "./resolveProjectId.js";
+import { resolveOrInitProject, resolveProject } from "./resolveProjectId.js";
 import { handleAddTask } from "./tools/addTask.js";
 import { handleBrief } from "./tools/brief.js";
 import { handleListTasks } from "./tools/listTasks.js";
@@ -26,15 +26,24 @@ const cwdParam = {
     ),
 };
 
-function createServer(defaultProjectId: string, config: McpConfig): McpServer {
+function createServer(config: McpConfig, startCwd: string): McpServer {
   const server = new McpServer({ name: "votra-memory", version: "1.0.0" });
+
+  // 서버 시작 cwd 기준 projectId를 첫 툴 호출 시점에 한 번만 resolve (lazy)
+  let defaultProjectId: string | null = null;
+  async function getDefaultPid(): Promise<string> {
+    if (!defaultProjectId) {
+      defaultProjectId = await resolveOrInitProject(startCwd, config);
+    }
+    return defaultProjectId;
+  }
 
   server.tool(
     "brief",
     "세션 시작 브리핑: 대기 중인 태스크, 최근 결정, 완료 항목, 프로젝트 규칙을 한 번에 받아요.",
     cwdParam,
     async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId }, config);
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       return { content: [{ type: "text" as const, text: await handleBrief(pid, config) }] };
     },
   );
@@ -48,7 +57,7 @@ function createServer(defaultProjectId: string, config: McpConfig): McpServer {
       tags: z.array(z.string()).optional().describe("태그 목록 (예: ['architecture', 'decision'])"),
     },
     async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId }, config);
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       return { content: [{ type: "text" as const, text: await handleRemember(args, pid, config) }] };
     },
   );
@@ -62,7 +71,7 @@ function createServer(defaultProjectId: string, config: McpConfig): McpServer {
       limit: z.number().int().min(1).max(50).optional().describe("최대 결과 수 (기본 10)"),
     },
     async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId }, config);
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       return { content: [{ type: "text" as const, text: await handleRecall(args, pid, config) }] };
     },
   );
@@ -75,7 +84,7 @@ function createServer(defaultProjectId: string, config: McpConfig): McpServer {
       limit: z.number().int().min(1).max(100).optional().describe("최대 개수 (기본 20)"),
     },
     async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId }, config);
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       return { content: [{ type: "text" as const, text: await handleListThoughts(args, pid, config) }] };
     },
   );
@@ -91,7 +100,7 @@ function createServer(defaultProjectId: string, config: McpConfig): McpServer {
       priority: z.number().int().min(0).max(10).optional().describe("우선순위 0-10 (기본 0)"),
     },
     async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId }, config);
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       return { content: [{ type: "text" as const, text: await handleAddTask(args, pid, config) }] };
     },
   );
@@ -124,7 +133,7 @@ function createServer(defaultProjectId: string, config: McpConfig): McpServer {
       module: z.string().optional().describe("모듈 필터 (예: auth)"),
     },
     async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId }, config);
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       return { content: [{ type: "text" as const, text: await handleListTasks(args, pid, config) }] };
     },
   );
@@ -132,18 +141,14 @@ function createServer(defaultProjectId: string, config: McpConfig): McpServer {
   return server;
 }
 
-export async function startStdio(defaultProjectId: string, config: McpConfig): Promise<void> {
-  const server = createServer(defaultProjectId, config);
+export async function startStdio(config: McpConfig, cwd: string): Promise<void> {
+  const server = createServer(config, cwd);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
-export async function startHttp(
-  port: number,
-  defaultProjectId: string,
-  config: McpConfig,
-): Promise<void> {
-  const mcpServer = createServer(defaultProjectId, config);
+export async function startHttp(port: number, config: McpConfig, cwd: string): Promise<void> {
+  const mcpServer = createServer(config, cwd);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await mcpServer.connect(transport);
 
