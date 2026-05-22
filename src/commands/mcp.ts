@@ -58,10 +58,11 @@ const TOOL_CONFIGS: Record<ToolKind, { name: string; mcpConfigPath: string; inst
 
 export async function mcpCommand(
   sub: string,
-  options: { stdio?: boolean; port?: number; cwd?: string; for?: string },
+  tools: string | undefined,
+  options: { stdio?: boolean; port?: number; cwd?: string },
 ): Promise<void> {
   if (sub === "install") {
-    await installCommand(options.for);
+    await installCommand(tools);
     return;
   }
 
