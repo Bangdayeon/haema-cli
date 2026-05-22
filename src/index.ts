@@ -97,11 +97,12 @@ program
 
 program
   .command("mcp <subcommand>")
-  .description("세션 간 메모리 MCP 서버 (start: 실행, install: Claude Code 등록 안내)")
-  .option("--stdio", "stdio transport 사용 (Claude Code 기본)")
-  .option("--port <n>", `HTTP transport 포트 (기본: 5200)`, (v) => Number(v))
+  .description("세션 간 메모리 MCP 서버 (start: 실행, install: 도구 등록)")
+  .option("--stdio", "stdio transport 사용 (기본)")
+  .option("--port <n>", "HTTP transport 포트 (기본: 5200)", (v) => Number(v))
   .option("--cwd <path>", "프로젝트 경로 (기본: 현재 디렉토리)")
-  .action((sub: string, options: { stdio?: boolean; port?: number; cwd?: string }) =>
+  .option("--for <tools>", "install 대상 도구: claude, cursor, gemini, codex, all (기본: claude)")
+  .action((sub: string, options: { stdio?: boolean; port?: number; cwd?: string; for?: string }) =>
     mcpCommand(sub, options),
   );
 
