@@ -1,6 +1,6 @@
 {
   "name": "@votra/cli",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "votra 세션 jsonl 을 로컬에서 검사/리플레이하고 서버로 업로드하는 CLI",
   "license": "MIT",
   "type": "module",
