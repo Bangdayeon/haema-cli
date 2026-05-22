@@ -113,10 +113,7 @@ async function configureTool(tool: ToolKind): Promise<void> {
   console.log(`\n── ${cfg.name} ──`);
 
   if (tool === "claude") {
-    // Claude는 mcp.json 자동 주입 불가 (기존 항목 충돌 위험) → 출력만
-    const mcpConfig = { mcpServers: { "votra-memory": MCP_SERVER_BLOCK } };
-    console.log(`  [수동] ${cfg.mcpConfigPath} 에 아래 내용을 추가하세요:`);
-    console.log("  " + JSON.stringify(mcpConfig, null, 2).replaceAll("\n", "\n  "));
+    await injectMcpJson(cfg.mcpConfigPath, "Claude Code");
     await injectInstruction(cfg.instructionPath, WORKFLOW_INSTRUCTION, "CLAUDE.md");
   } else if (tool === "cursor") {
     await injectMcpJson(cfg.mcpConfigPath, "Cursor");
