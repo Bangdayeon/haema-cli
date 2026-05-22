@@ -10,11 +10,15 @@ const DEFAULT_HTTP_PORT = 5200;
 const VOTRA_MARKER = "<!-- votra-memory -->";
 
 function resolveMcpServerBlock(): { command: string; args: string[] } {
+  const isWindows = process.platform === "win32";
   try {
-    const full = execSync("which votra", { encoding: "utf8" }).trim();
+    const cmd = isWindows ? "where votra" : "which votra";
+    const result = execSync(cmd, { encoding: "utf8" }).trim();
+    // where는 여러 줄 반환할 수 있으므로 첫 줄만 사용
+    const full = result.split("\n")[0].trim();
     if (full) return { command: full, args: ["mcp", "start", "--stdio"] };
   } catch {
-    // PATH에서 못 찾으면 그냥 votra 사용
+    // PATH에서 못 찾으면 폴백
   }
   return { command: "votra", args: ["mcp", "start", "--stdio"] };
 }
