@@ -1,6 +1,6 @@
 {
   "name": "@votra/cli",
-  "version": "0.3.18",
+  "version": "0.4.0",
   "description": "votra 세션 jsonl 을 로컬에서 검사/리플레이하고 서버로 업로드하는 CLI",
   "license": "MIT",
   "type": "module",
@@ -24,7 +24,9 @@
     "access": "public"
   },
   "dependencies": {
-    "commander": "^12.1.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "commander": "^12.1.0",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
