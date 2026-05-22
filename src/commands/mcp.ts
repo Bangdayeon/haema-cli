@@ -17,17 +17,21 @@ const WORKFLOW_INSTRUCTION = `
 ${VOTRA_MARKER}
 ## Votra Memory MCP
 
-votra-memory MCP 서버가 연결된 세션에서는 아래 워크플로우를 따르세요.
+votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요.
 
-### 세션 시작 시 (필수)
-항상 \`brief\` tool을 먼저 호출해서 현재 프로젝트 상태를 파악하세요.
-- 이전 세션의 태스크, 결정 사항, 완료된 작업을 바로 확인할 수 있어요.
+### 사용 가능한 툴
+- \`brief\` — 현재 프로젝트의 태스크, 결정 사항, 규칙을 한번에 조회
+- \`remember\` — 결정/인사이트 저장 (태그: \`decision\`, \`architecture\`, \`bug\`, \`context\`)
+- \`recall\` — 과거 결정 의미 검색
+- \`add_task\` — 태스크 등록
+- \`update_task\` — 태스크 상태 변경 (IN_PROGRESS / DONE)
+- \`list_tasks\` — 태스크 목록 조회
 
 ### 작업 워크플로우
-1. **탐색 (Research)** — 과거 관련 결정이 있는지 \`recall\`로 먼저 검색하세요.
-2. **설계 (Design)** — 핵심 결정 사항은 \`remember\`로 저장하세요. (태그: \`decision\`, \`architecture\`)
-3. **태스크 분해 (Tasks)** — \`add_task\`로 등록, 시작 시 IN_PROGRESS, 완료 시 DONE.
-4. **실행 (Execute)** — 태스크 순서대로 구현
+1. **탐색** — \`recall\`로 관련 과거 결정 검색
+2. **설계** — \`remember\`로 핵심 결정 저장
+3. **태스크** — \`add_task\`로 등록, \`update_task\`로 상태 관리
+4. **실행** — 태스크 순서대로 구현
 `;
 
 type ToolKind = "claude" | "cursor" | "gemini" | "codex";
