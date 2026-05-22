@@ -106,7 +106,7 @@ async function installCommand(forFlag?: string): Promise<void> {
     await configureTool(tool, mcpServerBlock);
   }
 
-  console.log("\n✅ 설치 완료! 대상 도구를 재시작하면 새 세션에서 자동으로 브리핑이 시작돼요.");
+  console.log("\n✅ 설치 완료! 대상 도구를 재시작한 뒤 \"brief 해줘\" 라고 말하면 현재 프로젝트 상태를 바로 확인할 수 있어요.");
 }
 
 function parseTargets(flag: string): ToolKind[] {
