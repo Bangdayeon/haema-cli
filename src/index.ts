@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { Command } from "commander";
 import { claudeFilesCommand } from "./commands/claudeFiles.js";
 import { inspectCommand } from "./commands/inspect.js";
+import { mcpCommand } from "./commands/mcp.js";
 import { replayCommand } from "./commands/replay.js";
 import { signinCommand } from "./commands/signin.js";
 import { signoutCommand } from "./commands/signout.js";
@@ -93,6 +94,16 @@ program
   )
   .option("-p, --project <path>", "스캔할 프로젝트 루트 (생략 시 현재 cwd)")
   .action((options: { project?: string }) => claudeFilesCommand(options));
+
+program
+  .command("mcp <subcommand>")
+  .description("세션 간 메모리 MCP 서버 (start: 실행, install: Claude Code 등록 안내)")
+  .option("--stdio", "stdio transport 사용 (Claude Code 기본)")
+  .option("--port <n>", `HTTP transport 포트 (기본: 5200)`, (v) => Number(v))
+  .option("--cwd <path>", "프로젝트 경로 (기본: 현재 디렉토리)")
+  .action((sub: string, options: { stdio?: boolean; port?: number; cwd?: string }) =>
+    mcpCommand(sub, options),
+  );
 
 program
   .command("inspect")
