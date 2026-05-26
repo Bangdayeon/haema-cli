@@ -41,7 +41,13 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
 
   server.tool(
     "brief",
-    "세션 시작 브리핑: 대기 중인 태스크, 최근 결정, 완료 항목, 프로젝트 규칙을 한 번에 받아요.",
+    [
+      "세션 시작 브리핑. 호출 후 반드시 아래 순서로 행동하세요:",
+      "1) 결과를 아래 형식으로 출력:",
+      "   --- [프로젝트명] 현황 / 최근 작업 흐름 / 진행 중 태스크 / 대기 중 태스크 / 메모리 --- / 이어서 할 작업이 있으신가요?",
+      "2) 유저가 작업을 요청하면: 코드 작업 전 반드시 add_task로 등록 → update_task IN_PROGRESS → 탐색 → 설계(remember) → 실행 → update_task DONE",
+      "3) 세션 종료 전 log_session으로 요약 저장.",
+    ].join(" "),
     cwdParam,
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
@@ -92,7 +98,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
 
   server.tool(
     "add_task",
-    "새 태스크를 추가해요.",
+    "새 태스크를 추가해요. 유저 작업 요청 시 코드 작업 전에 반드시 먼저 호출하세요. 등록 직후 update_task로 IN_PROGRESS 변경.",
     {
       ...cwdParam,
       title: z.string().describe("태스크 제목"),
@@ -108,7 +114,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
 
   server.tool(
     "update_task",
-    "태스크 상태나 내용을 업데이트해요. taskSeq 는 list_tasks 나 brief 에서 표시되는 #번호예요.",
+    "태스크 상태나 내용을 업데이트해요. taskSeq 는 list_tasks 나 brief 에서 표시되는 #번호예요. 작업 시작 시 IN_PROGRESS, 완료 시 DONE으로 반드시 업데이트하세요.",
     {
       taskSeq: z.number().int().positive().describe("태스크 번호 (예: 1, 42)"),
       status: z.enum(["PENDING", "IN_PROGRESS", "DONE", "CANCELLED"]).optional().describe("새 상태"),
