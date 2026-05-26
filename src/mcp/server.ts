@@ -12,11 +12,9 @@ import { handleAddTask } from "./tools/addTask.js";
 import { handleBrief } from "./tools/brief.js";
 import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
-import { handleListThoughts } from "./tools/listThoughts.js";
 import { handleLoadSkill } from "./tools/loadSkill.js";
 import { handleLogSession } from "./tools/logSession.js";
 import { handleRecall } from "./tools/recall.js";
-import { handleRemember } from "./tools/remember.js";
 import { handleStartTask } from "./tools/startTask.js";
 import { handleUpdateTask } from "./tools/updateTask.js";
 
@@ -66,21 +64,6 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
   );
 
   server.tool(
-    "remember",
-    "생각, 결정, 인사이트를 저장해요. 나중에 recall 로 의미 검색 가능.",
-    {
-      ...cwdParam,
-      content: z.string().describe("저장할 내용"),
-      tags: z.array(z.string()).optional().describe("태그 목록 (예: ['architecture', 'decision'])"),
-    },
-    async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
-      if (!pid) return NOT_REGISTERED;
-      return { content: [{ type: "text" as const, text: await handleRemember(args, pid, config) }] };
-    },
-  );
-
-  server.tool(
     "recall",
     "의미 유사도로 과거 생각을 검색해요.",
     {
@@ -92,20 +75,6 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleRecall(args, pid, config) }] };
-    },
-  );
-
-  server.tool(
-    "list_thoughts",
-    "최근 저장한 생각 목록을 봐요.",
-    {
-      ...cwdParam,
-      limit: z.number().int().min(1).max(100).optional().describe("최대 개수 (기본 20)"),
-    },
-    async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
-      if (!pid) return NOT_REGISTERED;
-      return { content: [{ type: "text" as const, text: await handleListThoughts(args, pid, config) }] };
     },
   );
 
@@ -145,7 +114,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
 
   server.tool(
     "finish_task",
-    "태스크를 DONE으로 완료하고 세션 요약을 저장해요. update_task(DONE) + log_session 두 번 호출을 한 번으로 줄여요.",
+    "태스크를 DONE으로 완료하고 세션 요약을 저장해요. update_task(DONE) + log_session 두 번 호출을 한 번으로 줄여요. keyDecisions에는 이 태스크에서 내린 핵심 결정/인사이트를 추출해서 전달하세요 — 아키텍처 선택, 버그 원인, 방향 변경 등 다음 세션에서 recall로 찾을 만한 내용만. 단순 구현 작업은 생략.",
     {
       ...cwdParam,
       taskSeq: z.number().int().positive().describe("완료할 태스크 번호 (예: 1, 42)"),
@@ -154,6 +123,14 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
         .enum(["claude", "cursor", "gemini", "codex"])
         .optional()
         .describe("사용 중인 AI 도구 (생략 시 unknown)"),
+      keyDecisions: z
+        .array(z.string())
+        .optional()
+        .describe("이 태스크의 핵심 결정/인사이트 목록. recall 검색 대상이 됨."),
+      outcome: z
+        .string()
+        .optional()
+        .describe("실제로 무엇을 구현/변경했는지 자유 서술 (2-5문장). 다음 세션에서 이 태스크 결과를 빠르게 파악하는 데 쓰임."),
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
