@@ -49,6 +49,8 @@ export async function signinCommand(
   const who = result.email ? ` (${result.email})` : "";
   console.log(`\n로그인 성공${who}`);
   console.log(`자격증명 저장: ${authFilePath()}`);
+  console.log("\n☝️  프로젝트 루트 폴더에서 votra upload --project 를 실행해서 업로드하세요.");
+  console.log("✌️  AI 도구 창을 열어 brief 을 실행하도록 한 후, 태스크를 생성해보세요.");
 }
 
 function stripTrailingSlash(s: string): string {
