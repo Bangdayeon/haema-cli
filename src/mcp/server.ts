@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -9,11 +10,13 @@ import type { McpConfig } from "./mcpClient.js";
 import { resolveOrInitProject, resolveProject } from "./resolveProjectId.js";
 import { handleAddTask } from "./tools/addTask.js";
 import { handleBrief } from "./tools/brief.js";
+import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
 import { handleListThoughts } from "./tools/listThoughts.js";
+import { handleLogSession } from "./tools/logSession.js";
 import { handleRecall } from "./tools/recall.js";
 import { handleRemember } from "./tools/remember.js";
-import { handleLogSession } from "./tools/logSession.js";
+import { handleStartTask } from "./tools/startTask.js";
 import { handleUpdateTask } from "./tools/updateTask.js";
 
 // 모든 일반 tool에 공통으로 붙는 optional cwd 파라미터
@@ -26,6 +29,9 @@ const cwdParam = {
         "여러 프로젝트를 넘나들 때 명시해요.",
     ),
 };
+
+// 이 MCP 서버 프로세스의 수명과 일치하는 세션 ID — 같은 세션의 log_session 호출을 하나로 묶어요
+const MCP_SESSION_ID = randomUUID();
 
 function createServer(config: McpConfig, startCwd: string): McpServer {
   const server = new McpServer({ name: "votra-memory", version: "1.0.0" });
@@ -113,6 +119,40 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
   );
 
   server.tool(
+    "start_task",
+    "태스크를 생성하고 즉시 IN_PROGRESS로 시작해요. add_task + update_task(IN_PROGRESS) 두 번 호출을 한 번으로 줄여요.",
+    {
+      ...cwdParam,
+      title: z.string().describe("태스크 제목"),
+      description: z.string().optional().describe("상세 설명"),
+      module: z.string().optional().describe("모듈명 (예: auth, api, ui)"),
+      priority: z.number().int().min(0).max(10).optional().describe("우선순위 0-10 (기본 0)"),
+    },
+    async (args) => {
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      return { content: [{ type: "text" as const, text: await handleStartTask(args, pid, config) }] };
+    },
+  );
+
+  server.tool(
+    "finish_task",
+    "태스크를 DONE으로 완료하고 세션 요약을 저장해요. update_task(DONE) + log_session 두 번 호출을 한 번으로 줄여요.",
+    {
+      ...cwdParam,
+      taskSeq: z.number().int().positive().describe("완료할 태스크 번호 (예: 1, 42)"),
+      summary: z.string().describe("이번 세션에서 한 작업 요약 (2-5문장)"),
+      aiTool: z
+        .enum(["claude", "cursor", "gemini", "codex"])
+        .optional()
+        .describe("사용 중인 AI 도구 (생략 시 unknown)"),
+    },
+    async (args) => {
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      return { content: [{ type: "text" as const, text: await handleFinishTask(args, pid, config) }] };
+    },
+  );
+
+  server.tool(
     "update_task",
     "태스크 상태나 내용을 업데이트해요. taskSeq 는 list_tasks 나 brief 에서 표시되는 #번호예요. 작업 시작 시 IN_PROGRESS, 완료 시 DONE으로 반드시 업데이트하세요.",
     {
@@ -141,7 +181,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
-      return { content: [{ type: "text" as const, text: await handleLogSession(args, pid, config) }] };
+      return { content: [{ type: "text" as const, text: await handleLogSession(args, pid, config, MCP_SESSION_ID) }] };
     },
   );
 
