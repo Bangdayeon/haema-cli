@@ -90,8 +90,8 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     }
   }
 
-  // 스킬 지침이 없을 때만 하드코딩된 다음 단계 제안 출력
-  if (!b.briefSkillContent) {
+  // 다음 단계 제안 — briefSkillContent 여부와 무관하게 항상 출력 (스킬은 지침, 이건 데이터)
+  {
     lines.push(`\n## 🎯 다음 단계 제안`);
 
     const suggestions: string[] = [];
