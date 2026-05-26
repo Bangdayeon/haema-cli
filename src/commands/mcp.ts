@@ -51,7 +51,7 @@ type ToolKind = "claude" | "cursor" | "gemini" | "codex";
 const TOOL_CONFIGS: Record<ToolKind, { name: string; mcpConfigPath: string; instructionPath: string }> = {
   claude: {
     name: "Claude Code",
-    mcpConfigPath: path.join(homedir(), ".claude", "claude_desktop_config.json"),
+    mcpConfigPath: path.join(homedir(), ".claude.json"),
     instructionPath: path.join(homedir(), ".claude", "CLAUDE.md"),
   },
   cursor: {
