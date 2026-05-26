@@ -4,6 +4,7 @@ import { mcpGet } from "../mcpClient.js";
 type Task = { id: string; seq: number; title: string; module: string | null; priority: number };
 type Thought = { id: string; content: string; tags: string[]; createdAt: string };
 type DoneTask = { id: string; seq: number; title: string; doneAt: string | null };
+type SessionLog = { id: string; summary: string; aiTool: string; createdAt: string };
 
 type Brief = {
   projectTitle: string;
@@ -13,6 +14,7 @@ type Brief = {
   recentDecisions: Thought[];
   recentlyDone: DoneTask[];
   rules: string[];
+  lastSessionSummary: SessionLog | null;
 };
 
 type BriefResponse = { ok: true; brief: Brief } | { ok: false; error: string };
@@ -26,6 +28,12 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
 
   lines.push(`# Votra Memory — Session Brief`);
   lines.push(`\n## Project: ${b.projectTitle}${b.cwd ? ` (${b.cwd})` : ""}`);
+
+  if (b.lastSessionSummary) {
+    const date = new Date(b.lastSessionSummary.createdAt).toLocaleDateString("ko-KR");
+    lines.push(`\n## 🕐 이전 세션 요약 (${date})`);
+    lines.push(b.lastSessionSummary.summary);
+  }
 
   if (b.inProgressTasks.length > 0) {
     lines.push(`\n## 🔄 진행 중 (${b.inProgressTasks.length})`);
