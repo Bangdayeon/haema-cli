@@ -258,7 +258,11 @@ async function injectInstruction(filePath: string, instruction: string, label: s
     }
 
     if (existing.includes(VOTRA_MARKER)) {
-      console.log(`  [건너뜀] ${label} 에 이미 votra-memory 지시문이 있어요.`);
+      // 마커부터 파일 끝까지 새 지시문으로 교체
+      const markerIdx = existing.indexOf(VOTRA_MARKER);
+      const updated = existing.slice(0, markerIdx) + instruction.trimStart();
+      await fs.writeFile(filePath, updated, "utf8");
+      console.log(`  [업데이트] ${filePath} 의 votra-memory 지시문을 최신 버전으로 교체했어요.`);
       return;
     }
 
