@@ -36,12 +36,14 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 - \`add_task\` — 태스크 등록
 - \`update_task\` — 태스크 상태 변경 (IN_PROGRESS / DONE)
 - \`list_tasks\` — 태스크 목록 조회
+- \`log_session\` — 세션 종료 전 작업 요약 저장
 
 ### 작업 워크플로우
 1. **탐색** — \`recall\`로 관련 과거 결정 검색
 2. **설계** — \`remember\`로 핵심 결정 저장
 3. **태스크** — \`add_task\`로 등록, \`update_task\`로 상태 관리
 4. **실행** — 태스크 순서대로 구현
+5. **종료** — 작업이 끝나면 \`log_session\`으로 이번 세션 요약 저장 (웹에서 세션 카드로 확인 가능)
 `;
 
 type ToolKind = "claude" | "cursor" | "gemini" | "codex";

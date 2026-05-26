@@ -13,6 +13,7 @@ import { handleListTasks } from "./tools/listTasks.js";
 import { handleListThoughts } from "./tools/listThoughts.js";
 import { handleRecall } from "./tools/recall.js";
 import { handleRemember } from "./tools/remember.js";
+import { handleLogSession } from "./tools/logSession.js";
 import { handleUpdateTask } from "./tools/updateTask.js";
 
 // 모든 일반 tool에 공통으로 붙는 optional cwd 파라미터
@@ -119,6 +120,23 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     async (args) => ({
       content: [{ type: "text" as const, text: await handleUpdateTask(args, config) }],
     }),
+  );
+
+  server.tool(
+    "log_session",
+    "세션 종료 전 작업 요약을 저장해요. AI가 한 일을 간결하게 정리해서 호출하면 웹에서 세션 카드로 확인할 수 있어요.",
+    {
+      ...cwdParam,
+      summary: z.string().describe("이번 세션에서 한 작업 요약 (2-5문장)"),
+      aiTool: z
+        .enum(["claude", "cursor", "gemini", "codex"])
+        .optional()
+        .describe("사용 중인 AI 도구 (생략 시 unknown)"),
+    },
+    async (args) => {
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      return { content: [{ type: "text" as const, text: await handleLogSession(args, pid, config) }] };
+    },
   );
 
   server.tool(

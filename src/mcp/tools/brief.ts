@@ -64,13 +64,47 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     lines.push(b.rules.join("\n"));
   }
 
-  if (
-    b.pendingTasks.length === 0 &&
-    b.inProgressTasks.length === 0 &&
-    b.recentDecisions.length === 0
-  ) {
-    lines.push("\n저장된 태스크나 메모가 없어요. `add_task` 나 `remember` 로 시작해보세요.");
+  // 다음 단계 제안 섹션
+  lines.push(`\n## 🎯 다음 단계 제안`);
+
+  const suggestions: string[] = [];
+
+  if (b.inProgressTasks.length > 0) {
+    for (const t of b.inProgressTasks.slice(0, 2)) {
+      suggestions.push(`- #${t.seq} **${t.title}** 계속 진행하기${t.module ? ` (${t.module})` : ""}`);
+    }
   }
+
+  const bugThoughts = b.recentDecisions.filter((d) => d.tags.includes("bug"));
+  if (bugThoughts.length > 0 && suggestions.length < 3) {
+    suggestions.push(`- 최근 기록된 버그 수정: "${bugThoughts[0].content.slice(0, 60)}${bugThoughts[0].content.length > 60 ? "…" : ""}"`);
+  }
+
+  const pendingByPriority = [...b.pendingTasks].sort((a, b) => b.priority - a.priority);
+  for (const t of pendingByPriority) {
+    if (suggestions.length >= 3) break;
+    const alreadyIn = b.inProgressTasks.some((i) => i.id === t.id);
+    if (!alreadyIn) {
+      suggestions.push(`- #${t.seq} **${t.title}** 시작하기${t.module ? ` (${t.module})` : ""}${t.priority > 0 ? ` [P${t.priority}]` : ""}`);
+    }
+  }
+
+  const decisionThoughts = b.recentDecisions.filter(
+    (d) => d.tags.includes("decision") || d.tags.includes("architecture"),
+  );
+  if (decisionThoughts.length > 0 && suggestions.length < 3) {
+    suggestions.push(`- 최근 결정 사항 구현: "${decisionThoughts[0].content.slice(0, 60)}${decisionThoughts[0].content.length > 60 ? "…" : ""}"`);
+  }
+
+  if (suggestions.length === 0) {
+    lines.push("아직 등록된 태스크나 메모가 없어요. 지금 하려는 작업을 말씀해주시면 태스크로 등록해드릴게요.");
+  } else {
+    lines.push(...suggestions);
+  }
+
+  lines.push(
+    "\n위 항목 중 진행할 것을 선택하거나, 추가로 원하는 기능/작업이 있으면 말씀해주세요. `add_task`로 바로 등록해드릴게요.",
+  );
 
   return lines.join("\n");
 }
