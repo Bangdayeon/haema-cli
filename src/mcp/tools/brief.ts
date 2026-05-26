@@ -1,3 +1,5 @@
+import { execSync } from "node:child_process";
+
 import type { McpConfig } from "../mcpClient.js";
 import { mcpGet } from "../mcpClient.js";
 
@@ -105,7 +107,19 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
   }
 
   if (suggestions.length === 0) {
-    lines.push("아직 등록된 태스크나 메모가 없어요. 지금 하려는 작업을 말씀해주시면 태스크로 등록해드릴게요.");
+    const commits = b.cwd ? getRecentCommits(b.cwd) : [];
+    if (commits.length > 0) {
+      lines.push("등록된 태스크나 메모가 없어요. 최근 커밋을 바탕으로 다음 작업을 추천해주세요:\n");
+      lines.push("**최근 커밋 (참고용):**");
+      for (const c of commits) lines.push(`  ${c}`);
+      lines.push(
+        "\n위 커밋 흐름을 분석해서, 지금 시점에 가장 자연스러운 다음 작업 2-3개를 구체적으로 제안해주세요. 유저가 선택하면 `add_task`로 바로 등록해드릴게요.",
+      );
+    } else {
+      lines.push(
+        "아직 등록된 태스크나 메모가 없어요. 지금 하려는 작업을 말씀해주시면 태스크로 등록해드릴게요.",
+      );
+    }
   } else {
     lines.push(...suggestions);
   }
@@ -115,4 +129,13 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
   );
 
   return lines.join("\n");
+}
+
+function getRecentCommits(cwd: string): string[] {
+  try {
+    const out = execSync("git log --oneline --no-merges -10", { cwd, encoding: "utf8", timeout: 3000 });
+    return out.trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
 }
