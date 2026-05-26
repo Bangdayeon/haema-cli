@@ -38,15 +38,29 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 - \`list_tasks\` — 태스크 목록 조회
 - \`log_session\` — 세션 종료 전 작업 요약 저장
 
-### 작업 워크플로우
-**규칙: 유저가 작업을 요청하면 반드시 \`add_task\`로 등록 먼저 하고, \`update_task\` (IN_PROGRESS)로 변경한 뒤 작업을 시작하세요. 작업 완료 시 DONE으로 업데이트하세요.**
+### 세션 시작 시 (필수)
+\`brief\` 호출 후 아래 형식으로 현황 정리:
 
-1. **탐색** — \`recall\`로 관련 과거 결정 검색
-2. **태스크 등록** — \`add_task\`로 작업 등록 후 IN_PROGRESS로 변경 → 그 다음 실행
+\`\`\`
+---
+[프로젝트명] 현황
+
+최근 작업 흐름: [태스크 이력/커밋 기반 맥락]
+진행 중: [IN_PROGRESS 태스크]
+대기 중: [PENDING 태스크, 우선순위 순]
+메모리: [최근 결정 요약]
+---
+이어서 할 작업이 있으신가요?
+\`\`\`
+
+### 작업 요청이 들어오면
+**규칙: 코드 작업 전 반드시 \`add_task\` 먼저 등록, \`update_task\` IN_PROGRESS 변경 후 실행.**
+
+1. **태스크 등록** — \`add_task\` 등록 + IN_PROGRESS 변경
+2. **탐색** — 관련 코드 파악, \`recall\`로 과거 결정 검색
 3. **설계** — 핵심 결정은 \`remember\`로 저장 (태그: \`decision\`, \`architecture\`)
-4. **실행** — 코드 작업 진행
-5. **완료** — \`update_task\` DONE으로 업데이트
-5. **종료** — 작업이 끝나면 \`log_session\`으로 이번 세션 요약 저장 (웹에서 세션 카드로 확인 가능)
+4. **실행** — 구현
+5. **완료** — \`update_task\` DONE, 세션 종료 전 \`log_session\` 호출
 `;
 
 type ToolKind = "claude" | "cursor" | "gemini" | "codex";
