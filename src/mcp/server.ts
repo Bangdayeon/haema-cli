@@ -13,6 +13,7 @@ import { handleBrief } from "./tools/brief.js";
 import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
 import { handleListThoughts } from "./tools/listThoughts.js";
+import { handleLoadSkill } from "./tools/loadSkill.js";
 import { handleLogSession } from "./tools/logSession.js";
 import { handleRecall } from "./tools/recall.js";
 import { handleRemember } from "./tools/remember.js";
@@ -36,27 +37,30 @@ const MCP_SESSION_ID = randomUUID();
 function createServer(config: McpConfig, startCwd: string): McpServer {
   const server = new McpServer({ name: "votra-memory", version: "1.0.0" });
 
-  // 서버 시작 cwd 기준 projectId를 첫 툴 호출 시점에 한 번만 resolve (lazy)
-  let defaultProjectId: string | null = null;
-  async function getDefaultPid(): Promise<string> {
-    if (!defaultProjectId) {
+  // 서버 시작 cwd 기준 projectId를 첫 툴 호출 시점에 한 번만 resolve (lazy).
+  // undefined = 아직 조회 안 함, null = 조회했으나 미등록 프로젝트
+  let defaultProjectId: string | null | undefined = undefined;
+  async function getDefaultPid(): Promise<string | null> {
+    if (defaultProjectId === undefined) {
       defaultProjectId = await resolveOrInitProject(startCwd, config);
     }
     return defaultProjectId;
   }
 
+  const NOT_REGISTERED = {
+    content: [{
+      type: "text" as const,
+      text: "이 디렉토리는 아직 votra에 등록되지 않았어요. `votra upload --project` 로 먼저 프로젝트를 등록해 주세요.",
+    }],
+  };
+
   server.tool(
     "brief",
-    [
-      "세션 시작 브리핑. 호출 후 반드시 아래 순서로 행동하세요:",
-      "1) 결과를 아래 형식으로 출력:",
-      "   --- [프로젝트명] 현황 / 최근 작업 흐름 / 진행 중 태스크 / 대기 중 태스크 / 메모리 --- / 이어서 할 작업이 있으신가요?",
-      "2) 유저가 작업을 요청하면: 코드 작업 전 반드시 add_task로 등록 → update_task IN_PROGRESS → 탐색 → 설계(remember) → 실행 → update_task DONE",
-      "3) 세션 종료 전 log_session으로 요약 저장.",
-    ].join(" "),
+    "세션 시작 브리핑. 현재 상태, AI 추천 태스크, 행동 지침을 반환해요. 응답 하단의 지침 섹션을 반드시 따르세요.",
     cwdParam,
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleBrief(pid, config) }] };
     },
   );
@@ -71,6 +75,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleRemember(args, pid, config) }] };
     },
   );
@@ -85,6 +90,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleRecall(args, pid, config) }] };
     },
   );
@@ -98,6 +104,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleListThoughts(args, pid, config) }] };
     },
   );
@@ -114,6 +121,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleAddTask(args, pid, config) }] };
     },
   );
@@ -130,6 +138,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleStartTask(args, pid, config) }] };
     },
   );
@@ -148,6 +157,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleFinishTask(args, pid, config) }] };
     },
   );
@@ -181,7 +191,22 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleLogSession(args, pid, config, MCP_SESSION_ID) }] };
+    },
+  );
+
+  server.tool(
+    "load_skill",
+    "상황에 맞는 스킬의 전체 지침을 로드해요. brief 응답에 listed된 사용 가능한 스킬을 맥락에 맞게 호출하세요.",
+    {
+      ...cwdParam,
+      slug: z.string().describe("스킬 슬러그 (예: planner, reviewer)"),
+    },
+    async (args) => {
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      return { content: [{ type: "text" as const, text: await handleLoadSkill(args, pid, config) }] };
     },
   );
 
@@ -198,6 +223,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleListTasks(args, pid, config) }] };
     },
   );
