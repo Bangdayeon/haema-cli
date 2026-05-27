@@ -66,7 +66,7 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 1. **태스크 등록** — \`add_task\` 등록 + \`start_task\` 시작
 2. **탐색** — 관련 코드 파악, \`recall\`로 과거 결정 검색
 3. **실행** — 구현
-4. **완료** — \`finish_task\` 완료, 세션 종료 전 \`log_session\` 호출
+4. **완료** — \`finish_task\` 완료 (outcome에 수정한 파일 경로 포함), 세션 종료 전 \`log_session\` 호출
 `;
 
 type ToolKind = "claude" | "cursor" | "gemini" | "codex";
