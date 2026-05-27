@@ -178,9 +178,17 @@ async function injectMcpJson(filePath: string, label: string, mcpServerBlock: { 
       // 없거나 파싱 실패 → 새로 생성
     }
 
-    const servers = (existing.mcpServers ?? {}) as Record<string, unknown>;
+    const servers = (existing.mcpServers ?? {}) as Record<string, { command?: string; args?: string[] }>;
     if ("votra-memory" in servers) {
-      console.log(`  [건너뜀] ${label} 에 이미 votra-memory 설정이 있어요.`);
+      const current = servers["votra-memory"];
+      if (current?.command === mcpServerBlock.command) {
+        console.log(`  [건너뜀] ${label} 에 이미 votra-memory 설정이 있어요.`);
+        return;
+      }
+      servers["votra-memory"] = mcpServerBlock;
+      existing.mcpServers = servers;
+      await fs.writeFile(filePath, JSON.stringify(existing, null, 2) + "\n", "utf8");
+      console.log(`  [업데이트] ${filePath} 의 votra-memory command 경로를 업데이트했어요.`);
       return;
     }
 
@@ -233,7 +241,15 @@ async function injectCodexConfig(filePath: string, mcpServerBlock: { command: st
     }
 
     if (existing.includes("votra-memory")) {
-      console.log(`  [건너뜀] ${filePath} 에 이미 votra-memory 설정이 있어요.`);
+      const currentMatch = existing.match(/command:\s*(.+)/);
+      const currentCommand = currentMatch?.[1]?.trim();
+      if (currentCommand === mcpServerBlock.command) {
+        console.log(`  [건너뜀] ${filePath} 에 이미 votra-memory 설정이 있어요.`);
+        return;
+      }
+      const updated = existing.replace(/command:\s*.+/, `command: ${mcpServerBlock.command}`);
+      await fs.writeFile(filePath, updated, "utf8");
+      console.log(`  [업데이트] ${filePath} 의 votra-memory command 경로를 업데이트했어요.`);
       return;
     }
 
