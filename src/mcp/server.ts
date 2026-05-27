@@ -87,6 +87,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       description: z.string().optional().describe("상세 설명"),
       module: z.string().optional().describe("모듈명 (예: auth, api, ui)"),
       priority: z.number().int().min(0).max(10).optional().describe("우선순위 0-10 (기본 0)"),
+      folderId: z.string().optional().describe("폴더 ID (brief의 폴더 목록에서 확인)"),
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
@@ -104,6 +105,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       description: z.string().optional().describe("상세 설명"),
       module: z.string().optional().describe("모듈명 (예: auth, api, ui)"),
       priority: z.number().int().min(0).max(10).optional().describe("우선순위 0-10 (기본 0)"),
+      folderId: z.string().optional().describe("폴더 ID (brief의 폴더 목록에서 확인)"),
     },
     async (args) => {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);

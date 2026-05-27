@@ -6,7 +6,7 @@ type StartTaskResponse =
   | { ok: false; error: string };
 
 export async function handleStartTask(
-  args: { title: string; description?: string; module?: string; priority?: number },
+  args: { title: string; description?: string; module?: string; priority?: number; folderId?: string },
   projectId: string,
   config: McpConfig,
 ): Promise<string> {
@@ -16,6 +16,7 @@ export async function handleStartTask(
     description: args.description,
     module: args.module,
     priority: args.priority,
+    folderId: args.folderId,
   });
   if (!data.ok) throw new Error(data.error);
   return `태스크 시작됨: #${data.task.seq} "${data.task.title}" → IN_PROGRESS`;

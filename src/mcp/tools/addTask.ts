@@ -6,7 +6,7 @@ type TaskResponse =
   | { ok: false; error: string };
 
 export async function handleAddTask(
-  args: { title: string; description?: string; module?: string; priority?: number },
+  args: { title: string; description?: string; module?: string; priority?: number; folderId?: string },
   projectId: string,
   config: McpConfig,
 ): Promise<string> {
@@ -16,6 +16,7 @@ export async function handleAddTask(
     description: args.description,
     module: args.module,
     priority: args.priority,
+    folderId: args.folderId,
   });
   if (!data.ok) throw new Error(data.error);
   return `태스크 생성됨: #${data.task.seq} "${data.task.title}"`;
