@@ -31,10 +31,11 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 
 ### 사용 가능한 툴
 - \`brief\` — 현재 프로젝트의 태스크, 결정 사항, 규칙을 한번에 조회
-- \`remember\` — 결정/인사이트 저장 (태그: \`decision\`, \`architecture\`, \`bug\`, \`context\`)
 - \`recall\` — 과거 결정 의미 검색
 - \`add_task\` — 태스크 등록
-- \`update_task\` — 태스크 상태 변경 (IN_PROGRESS / DONE)
+- \`start_task\` — 태스크 시작 (IN_PROGRESS)
+- \`update_task\` — 태스크 상태 변경
+- \`finish_task\` — 태스크 완료 처리
 - \`list_tasks\` — 태스크 목록 조회
 - \`log_session\` — 세션 종료 전 작업 요약 저장
 
@@ -42,25 +43,30 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 \`brief\` 호출 후 아래 형식으로 현황 정리:
 
 \`\`\`
----
-[프로젝트명] 현황
+최근 작업 흐름: [커밋/세션 기반 1-2줄 흐름 — 없으면 생략]
 
-최근 작업 흐름: [태스크 이력/커밋 기반 맥락]
-진행 중: [IN_PROGRESS 태스크]
-대기 중: [PENDING 태스크, 우선순위 순]
-메모리: [최근 결정 요약]
----
-이어서 할 작업이 있으신가요?
+진행 중: (있을 때만)
+- #번호 태스크명
+
+대기 중: (있을 때만)
+- #번호 태스크명
+
+추천 태스크:
+1) [AI 추천 1개]
+2) [기존 태스크·최근 커밋 분석 추천]
+3) [기존 태스크·최근 커밋 분석 추천]
 \`\`\`
 
-### 작업 요청이 들어오면
-**규칙: 코드 작업 전 반드시 \`add_task\` 먼저 등록, \`update_task\` IN_PROGRESS 변경 후 실행.**
+진행 중·대기 중은 해당 태스크가 없으면 아예 출력하지 않아요.
+추천 태스크는 반드시 3개를 채워서 출력해요.
 
-1. **태스크 등록** — \`add_task\` 등록 + IN_PROGRESS 변경
+### 작업 요청이 들어오면
+**규칙: 코드 작업 전 반드시 \`add_task\` 먼저 등록, \`start_task\`로 시작 후 실행.**
+
+1. **태스크 등록** — \`add_task\` 등록 + \`start_task\` 시작
 2. **탐색** — 관련 코드 파악, \`recall\`로 과거 결정 검색
-3. **설계** — 핵심 결정은 \`remember\`로 저장 (태그: \`decision\`, \`architecture\`)
-4. **실행** — 구현
-5. **완료** — \`update_task\` DONE, 세션 종료 전 \`log_session\` 호출
+3. **실행** — 구현
+4. **완료** — \`finish_task\` 완료, 세션 종료 전 \`log_session\` 호출
 `;
 
 type ToolKind = "claude" | "cursor" | "gemini" | "codex";
@@ -146,6 +152,7 @@ async function configureTool(tool: ToolKind, mcpServerBlock: { command: string; 
 
   if (tool === "claude") {
     await injectMcpJson(cfg.mcpConfigPath, "Claude Code", mcpServerBlock);
+    await injectInstruction(cfg.instructionPath, WORKFLOW_INSTRUCTION, "CLAUDE.md");
   } else if (tool === "cursor") {
     await injectMcpJson(cfg.mcpConfigPath, "Cursor", mcpServerBlock);
     await injectCursorRule(cfg.instructionPath);
