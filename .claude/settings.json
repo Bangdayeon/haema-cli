@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__votra-memory__start_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/require-task-confirmation.sh",
+            "statusMessage": "사용자 확인 검사 중..."
+          }
+        ]
+      }
+    ]
+  }
+}
