@@ -39,7 +39,7 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
   // 폴더 id → name 맵 (add_task 시 참조용)
   const folderMap = new Map((b.folders ?? []).map((f) => [f.id, f.name]));
 
-  // 최근 작업 흐름: AI 요약 + 완료 태스크 + 커밋 → Claude가 1-2줄로 합성
+  // 최근 작업 흐름: AI 요약 + 완료 태스크 + 커밋 → Claude가 bullet 3개로 합성
   const flowContext: string[] = [];
   if (b.aiSummary?.summary) {
     flowContext.push(`프로젝트 AI 요약: ${b.aiSummary.summary}`);
@@ -52,26 +52,13 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     flowContext.push("최근 커밋: " + commits.map((c) => c.replace(/^[a-f0-9]+ /, "")).join(" / "));
   }
   if (flowContext.length > 0) {
-    lines.push(`[다음 정보를 바탕으로 "최근 작업 흐름:" 1-2줄 흐름을 작성하세요 (없으면 생략)]`);
+    lines.push(`[다음 정보를 바탕으로 "최근 작업 흐름:" bullet 3개를 작성하세요]`);
     lines.push(...flowContext);
     lines.push("");
   }
 
-  // 진행 중 태스크 (있을 때만)
-  if (b.inProgressTasks.length > 0) {
-    lines.push(`진행 중:`);
-    for (const t of b.inProgressTasks) {
-      const mod = t.module ? ` [${t.module}]` : "";
-      const folder = t.folderId ? ` 📁${folderMap.get(t.folderId) ?? ""}` : "";
-      lines.push(`- #${t.seq} ${t.title}${mod}${folder}`);
-    }
-    lines.push("");
-  }
-
-  // 프로젝트 상태 요약: 태스크 통계 → Claude가 2~3줄 bullet으로 합성
+  // 프로젝트 상태 요약
   const statusCtx: string[] = [];
-  statusCtx.push(`진행 중: ${b.inProgressTasks.length}개 (${b.inProgressTasks.map((t) => t.title).join(", ") || "없음"})`);
-  statusCtx.push(`대기 중: ${b.pendingTasks.length}개 (우선순위순: ${b.pendingTasks.slice(0, 3).map((t) => t.title).join(", ") || "없음"})`);
   const recentDone = b.recentlyDone.slice(0, 3);
   if (recentDone.length > 0) {
     statusCtx.push(`최근 완료: ${recentDone.map((t) => t.title).join(", ")}`);
@@ -112,9 +99,6 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
   const recContext: string[] = [];
   if (recentDone.length > 0) {
     recContext.push("최근 완료 태스크: " + recentDone.map((t) => t.title).join(", "));
-  }
-  if (b.pendingTasks.length > 0) {
-    recContext.push("대기 태스크: " + b.pendingTasks.map((t) => t.title).join(", "));
   }
   if (commits.length > 0) {
     recContext.push("최근 커밋: " + commits.map((c) => c.replace(/^[a-f0-9]+ /, "")).join(" / "));
