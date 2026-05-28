@@ -8,6 +8,7 @@ type DoneTask = { seq: number; title: string; outcome: string | null };
 type SessionLog = { summary: string; createdAt: string };
 type NextTask = { title: string; reason?: string; priority: "high" | "medium" | "low" };
 type Folder = { id: string; name: string; taskCount: number };
+type Skill = { slug: string; name: string; contextHint: string; category: string };
 
 type RecentTask = { seq: number; title: string; status: string; updatedAt: string };
 
@@ -19,6 +20,7 @@ type Brief = {
   recentlyDone: DoneTask[];
   recentlyModified?: RecentTask[];
   folders: Folder[];
+  availableSkills?: Skill[];
   lastSessionSummary: SessionLog | null;
   recommendedNextTasks?: NextTask[];
   briefSkillContent?: string;
@@ -126,6 +128,14 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     lines.push(...recContext);
   } else if (!topAi) {
     lines.push("등록된 태스크나 이전 작업이 없어요. 하려는 작업을 말씀해주세요.");
+  }
+
+  // 사용 가능한 스킬 목록
+  if (b.availableSkills && b.availableSkills.length > 0) {
+    lines.push(`\n사용 가능한 스킬 (load_skill로 로드):`);
+    for (const s of b.availableSkills) {
+      lines.push(`- ${s.slug}: ${s.name} — ${s.contextHint}`);
+    }
   }
 
   if (b.briefSkillContent) {

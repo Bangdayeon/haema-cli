@@ -15,8 +15,12 @@ import { handleListTasks } from "./tools/listTasks.js";
 import { handleLoadSkill } from "./tools/loadSkill.js";
 import { handleLogSession } from "./tools/logSession.js";
 import { handleRecall } from "./tools/recall.js";
+import { handleSignin } from "./tools/signin.js";
+import { handleSignout } from "./tools/signout.js";
 import { handleStartTask } from "./tools/startTask.js";
 import { handleUpdateTask } from "./tools/updateTask.js";
+import { handleUploadPrompt } from "./tools/uploadPrompt.js";
+import { handleWhoami } from "./tools/whoami.js";
 
 // 모든 일반 tool에 공통으로 붙는 optional cwd 파라미터
 const cwdParam = {
@@ -48,7 +52,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
   const NOT_REGISTERED = {
     content: [{
       type: "text" as const,
-      text: "이 디렉토리는 아직 votra에 등록되지 않았어요. `votra upload --project` 로 먼저 프로젝트를 등록해 주세요.",
+      text: "votra 프로젝트를 찾을 수 없어요. `signin` 툴로 로그인 상태를 확인해 주세요.",
     }],
   };
 
@@ -205,6 +209,46 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleListTasks(args, pid, config) }] };
     },
+  );
+
+  server.tool(
+    "upload_prompt",
+    "CLAUDE.md, AGENTS.md, SKILL.md 파일을 votra에 업로드해요. 프롬프트/스킬 파일을 최신 상태로 동기화할 때 사용해요.",
+    {
+      cwd: z.string().describe("프로젝트 절대경로"),
+    },
+    async (args) => ({
+      content: [{ type: "text" as const, text: await handleUploadPrompt(args, config) }],
+    }),
+  );
+
+  server.tool(
+    "signin",
+    "votra 계정으로 로그인해요. 브라우저가 자동으로 열려요.",
+    {
+      appUrl: z.string().optional().describe("votra 서버 URL (기본값: https://votra.jocodingax.ai)"),
+    },
+    async (args) => ({
+      content: [{ type: "text" as const, text: await handleSignin(args) }],
+    }),
+  );
+
+  server.tool(
+    "whoami",
+    "현재 로그인된 계정 정보를 확인해요.",
+    {},
+    async () => ({
+      content: [{ type: "text" as const, text: await handleWhoami() }],
+    }),
+  );
+
+  server.tool(
+    "signout",
+    "현재 계정에서 로그아웃해요.",
+    {},
+    async () => ({
+      content: [{ type: "text" as const, text: await handleSignout() }],
+    }),
   );
 
   return server;

@@ -1,7 +1,7 @@
 {
   "name": "@votra/cli",
-  "version": "0.5.5",
-  "description": "votra 세션 jsonl 을 로컬에서 검사/리플레이하고 서버로 업로드하는 CLI",
+  "version": "0.6.0",
+  "description": "votra 세션 간 연결을 위한 MCP 서버",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -25,7 +25,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "commander": "^12.1.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {

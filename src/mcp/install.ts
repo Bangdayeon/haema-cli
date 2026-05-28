@@ -3,10 +3,6 @@ import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import { readMcpConfig } from "../mcp/mcpClient.js";
-import { startHttp, startStdio } from "../mcp/server.js";
-
-const DEFAULT_HTTP_PORT = 5200;
 const VOTRA_MARKER = "<!-- votra-memory -->";
 
 function resolveMcpServerBlock(): { command: string; args: string[] } {
@@ -14,13 +10,12 @@ function resolveMcpServerBlock(): { command: string; args: string[] } {
   try {
     const cmd = isWindows ? "where votra" : "which votra";
     const result = execSync(cmd, { encoding: "utf8" }).trim();
-    // where는 여러 줄 반환할 수 있으므로 첫 줄만 사용
     const full = result.split("\n")[0].trim();
-    if (full) return { command: full, args: ["mcp", "start", "--stdio"] };
+    if (full) return { command: full, args: ["--stdio"] };
   } catch {
     // PATH에서 못 찾으면 폴백
   }
-  return { command: "votra", args: ["mcp", "start", "--stdio"] };
+  return { command: "votra", args: ["--stdio"] };
 }
 
 const WORKFLOW_INSTRUCTION = `
@@ -38,6 +33,10 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 - \`finish_task\` — 태스크 완료 처리
 - \`list_tasks\` — 태스크 목록 조회
 - \`log_session\` — 세션 종료 전 작업 요약 저장
+- \`upload_prompt\` — CLAUDE.md/AGENTS.md/SKILL.md 업로드
+- \`signin\` — votra 계정 로그인
+- \`whoami\` — 로그인 계정 확인
+- \`signout\` — 로그아웃
 
 ### 세션 시작 시 (필수)
 \`brief\` 호출 후 아래 형식으로 현황 정리:
@@ -99,34 +98,7 @@ const TOOL_CONFIGS: Record<ToolKind, { name: string; mcpConfigPath: string; inst
   },
 };
 
-export async function mcpCommand(
-  sub: string,
-  tools: string | undefined,
-  options: { stdio?: boolean; port?: number; cwd?: string },
-): Promise<void> {
-  if (sub === "install") {
-    await installCommand(tools);
-    return;
-  }
-
-  if (sub !== "start") {
-    console.error(`알 수 없는 subcommand: ${sub}. 'start' 또는 'install' 을 사용해주세요.`);
-    process.exit(1);
-  }
-
-  const config = await readMcpConfig();
-  const cwd = options.cwd ?? process.cwd();
-
-  if (options.stdio) {
-    await startStdio(config, cwd);
-    return;
-  }
-
-  const port = options.port ?? DEFAULT_HTTP_PORT;
-  await startHttp(port, config, cwd);
-}
-
-async function installCommand(forFlag?: string): Promise<void> {
+export async function installCommand(forFlag?: string): Promise<void> {
   const targets = parseTargets(forFlag ?? "claude");
   const mcpServerBlock = resolveMcpServerBlock();
 
@@ -170,7 +142,6 @@ async function configureTool(tool: ToolKind, mcpServerBlock: { command: string; 
   }
 }
 
-// JSON 기반 MCP 설정 파일 (Cursor, Gemini)
 async function injectMcpJson(filePath: string, label: string, mcpServerBlock: { command: string; args: string[] }): Promise<void> {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -207,7 +178,6 @@ async function injectMcpJson(filePath: string, label: string, mcpServerBlock: { 
   }
 }
 
-// Cursor rules .mdc 파일 (frontmatter + instruction)
 async function injectCursorRule(filePath: string): Promise<void> {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -233,7 +203,6 @@ ${WORKFLOW_INSTRUCTION}`;
   }
 }
 
-// Codex YAML config (mcp_servers 블록 추가)
 async function injectCodexConfig(filePath: string, mcpServerBlock: { command: string; args: string[] }): Promise<void> {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -272,7 +241,6 @@ mcp_servers:
   }
 }
 
-// Markdown 지시문 파일 (CLAUDE.md, GEMINI.md, AGENTS.md)
 async function injectInstruction(filePath: string, instruction: string, label: string): Promise<void> {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -285,7 +253,6 @@ async function injectInstruction(filePath: string, instruction: string, label: s
     }
 
     if (existing.includes(VOTRA_MARKER)) {
-      // 마커부터 파일 끝까지 새 지시문으로 교체
       const markerIdx = existing.indexOf(VOTRA_MARKER);
       const updated = existing.slice(0, markerIdx) + instruction.trimStart();
       await fs.writeFile(filePath, updated, "utf8");
