@@ -15,6 +15,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "prebuild": "rm -rf dist",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "engines": {
