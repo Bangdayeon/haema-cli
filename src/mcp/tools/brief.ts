@@ -4,7 +4,7 @@ import type { McpConfig } from "../mcpClient.js";
 import { mcpGet } from "../mcpClient.js";
 
 type Task = { id: string; seq: number; title: string; module: string | null; priority: number; folderId: string | null };
-type DoneTask = { seq: number; title: string; outcome: string | null };
+type DoneTask = { seq: number; title: string; outcome: string | null; keyDecisions: string[] };
 type NextTask = { title: string; reason?: string; priority: "high" | "medium" | "low" };
 type Folder = { id: string; name: string; taskCount: number };
 type Skill = { slug: string; name: string; contextHint: string; category: string };
@@ -75,6 +75,10 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
   const recentDone = b.recentlyDone.slice(0, 3);
   if (recentDone.length > 0) {
     statusCtx.push(`최근 완료: ${recentDone.map((t) => t.title).join(", ")}`);
+    const withDecisions = recentDone.filter((t) => t.keyDecisions.length > 0);
+    for (const t of withDecisions) {
+      statusCtx.push(`  #${t.seq} 핵심 결정: ${t.keyDecisions.join(" / ")}`);
+    }
   }
   if (b.aiSummary?.warnings?.length) {
     statusCtx.push(`주의: ${b.aiSummary.warnings.join(", ")}`);
