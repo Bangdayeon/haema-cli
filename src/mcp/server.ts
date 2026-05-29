@@ -10,6 +10,7 @@ import type { McpConfig } from "./mcpClient.js";
 import { resolveOrInitProject, resolveProject } from "./resolveProjectId.js";
 import { handleAddTask } from "./tools/addTask.js";
 import { handleBrief } from "./tools/brief.js";
+import { handleGetTask } from "./tools/getTask.js";
 import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
 import { handleLoadSkill } from "./tools/loadSkill.js";
@@ -190,6 +191,20 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleLoadSkill(args, pid, config) }] };
+    },
+  );
+
+  server.tool(
+    "task_detail",
+    "태스크 하나의 전체 상세 정보를 조회해요. title, description, status, module, outcome, keyDecisions 등을 반환해요.",
+    {
+      ...cwdParam,
+      taskSeq: z.number().int().positive().describe("태스크 번호 (예: 1, 42)"),
+    },
+    async (args) => {
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      return { content: [{ type: "text" as const, text: await handleGetTask(args, pid, config) }] };
     },
   );
 
