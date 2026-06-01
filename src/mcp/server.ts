@@ -150,6 +150,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     "update_task",
     "태스크 상태나 내용을 업데이트해요. taskSeq 는 list_tasks 나 brief 에서 표시되는 #번호예요. 작업 시작 시 IN_PROGRESS, 완료 시 DONE으로 반드시 업데이트하세요.",
     {
+      ...cwdParam,
       taskSeq: z.number().int().positive().describe("태스크 번호 (예: 1, 42)"),
       status: z.enum(["PENDING", "IN_PROGRESS", "DONE", "CANCELLED"]).optional().describe("새 상태"),
       title: z.string().optional().describe("새 제목"),
@@ -157,9 +158,11 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       module: z.string().optional().describe("새 모듈명"),
       priority: z.number().int().min(0).max(10).optional().describe("새 우선순위"),
     },
-    async (args) => ({
-      content: [{ type: "text" as const, text: await handleUpdateTask(args, config) }],
-    }),
+    async (args) => {
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      return { content: [{ type: "text" as const, text: await handleUpdateTask({ ...args, projectId: pid }, config) }] };
+    },
   );
 
   server.tool(

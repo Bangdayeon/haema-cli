@@ -7,6 +7,7 @@ type UpdateResponse = { ok: true; task: TaskRecord } | { ok: false; error: strin
 export async function handleUpdateTask(
   args: {
     taskSeq: number;
+    projectId: string;
     status?: string;
     title?: string;
     description?: string;
@@ -15,8 +16,8 @@ export async function handleUpdateTask(
   },
   config: McpConfig,
 ): Promise<string> {
-  const { taskSeq, ...updates } = args;
-  const data = await mcpPatch<UpdateResponse>(config, `/api/memory/tasks/${taskSeq}`, updates);
+  const { taskSeq, projectId, ...updates } = args;
+  const data = await mcpPatch<UpdateResponse>(config, `/api/memory/tasks/${taskSeq}`, { projectId, ...updates });
   if (!data.ok) throw new Error(data.error);
   return `태스크 업데이트됨: #${data.task.seq} "${data.task.title}" → ${data.task.status}`;
 }
