@@ -17,6 +17,7 @@ if (args[0] === "install") {
   const cwd = cwdArg !== -1 ? args[cwdArg + 1] : process.cwd();
 
   readMcpConfig()
+    .catch(() => null)
     .then((config) => {
       if (port !== undefined) return startHttp(port, config, cwd);
       return startStdio(config, cwd);
