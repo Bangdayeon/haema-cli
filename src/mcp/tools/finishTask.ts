@@ -2,7 +2,7 @@ import type { McpConfig } from "../mcpClient.js";
 import { mcpPost } from "../mcpClient.js";
 
 type FinishTaskResponse =
-  | { ok: true; task: { seq: number; title: string }; sessionLog: { id: string } }
+  | { ok: true; task: { seq: number; title: string } }
   | { ok: false; error: string };
 
 export async function handleFinishTask(
@@ -18,7 +18,7 @@ export async function handleFinishTask(
     outcome: args.outcome,
   });
   if (!data.ok) throw new Error(data.error);
-  const decisionsNote = args.keyDecisions?.length ? ` 결정 ${args.keyDecisions.length}개` : "";
+  const decisionsNote = args.keyDecisions?.length ? ` 핵심 결정 ${args.keyDecisions.length}개 저장됨.` : "";
   const outcomeNote = args.outcome ? " outcome 저장됨." : "";
-  return `태스크 완료: #${data.task.seq} "${data.task.title}" → DONE\n세션 로그 저장됨.${decisionsNote}${outcomeNote}`;
+  return `태스크 완료: #${data.task.seq} "${data.task.title}" → DONE${decisionsNote}${outcomeNote}`;
 }

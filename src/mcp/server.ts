@@ -1,5 +1,4 @@
 import http from "node:http";
-import { randomUUID } from "node:crypto";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -10,11 +9,11 @@ import type { McpConfig } from "./mcpClient.js";
 import { resolveOrInitProject, resolveProject } from "./resolveProjectId.js";
 import { handleAddTask } from "./tools/addTask.js";
 import { handleBrief } from "./tools/brief.js";
+import { handleCreateFolder } from "./tools/createFolder.js";
 import { handleGetTask } from "./tools/getTask.js";
 import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
 import { handleLoadSkill } from "./tools/loadSkill.js";
-import { handleLogSession } from "./tools/logSession.js";
 import { handleRecall } from "./tools/recall.js";
 import { handleSignin } from "./tools/signin.js";
 import { handleSignout } from "./tools/signout.js";
@@ -34,10 +33,7 @@ const cwdParam = {
     ),
 };
 
-// 이 MCP 서버 프로세스의 수명과 일치하는 세션 ID — 같은 세션의 log_session 호출을 하나로 묶어요
-const MCP_SESSION_ID = randomUUID();
-
-function createServer(config: McpConfig, startCwd: string): McpServer {
+function createServer(config: McpConfig | null, startCwd: string): McpServer {
   const server = new McpServer({ name: "votra-memory", version: "1.0.0" });
 
   // 서버 시작 cwd 기준 projectId를 첫 툴 호출 시점에 한 번만 resolve (lazy).
@@ -45,7 +41,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
   let defaultProjectId: string | null | undefined = undefined;
   async function getDefaultPid(): Promise<string | null> {
     if (defaultProjectId === undefined) {
-      defaultProjectId = await resolveOrInitProject(startCwd, config);
+      defaultProjectId = await resolveOrInitProject(startCwd, config!);
     }
     return defaultProjectId;
   }
@@ -57,11 +53,19 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     }],
   };
 
+  const NOT_LOGGED_IN = {
+    content: [{
+      type: "text" as const,
+      text: "로그인이 필요해요. `signin` 툴로 먼저 로그인해 주세요.",
+    }],
+  };
+
   server.tool(
     "brief",
     "세션 시작 브리핑. 현재 상태, AI 추천 태스크, 행동 지침을 반환해요. 응답 하단의 지침 섹션을 반드시 따르세요.",
     cwdParam,
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleBrief(pid, config) }] };
@@ -77,6 +81,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       limit: z.number().int().min(1).max(50).optional().describe("최대 결과 수 (기본 10)"),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleRecall(args, pid, config) }] };
@@ -90,11 +95,12 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       ...cwdParam,
       title: z.string().describe("태스크 제목"),
       description: z.string().optional().describe("상세 설명"),
-      module: z.string().optional().describe("모듈명 (예: auth, api, ui)"),
+      module: z.string().optional().describe("모듈 슬러그. backend · frontend · database · designer · integration · devops · planner · testing 중 선택 (스킬 자동 매칭에 사용됨)"),
       priority: z.number().int().min(0).max(10).optional().describe("우선순위 0-10 (기본 0)"),
       folderId: z.string().optional().describe("폴더 ID (brief의 폴더 목록에서 확인)"),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleAddTask(args, pid, config) }] };
@@ -108,11 +114,12 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       ...cwdParam,
       title: z.string().describe("태스크 제목"),
       description: z.string().optional().describe("상세 설명"),
-      module: z.string().optional().describe("모듈명 (예: auth, api, ui)"),
+      module: z.string().optional().describe("모듈 슬러그. backend · frontend · database · designer · integration · devops · planner · testing 중 선택 (스킬 자동 매칭에 사용됨)"),
       priority: z.number().int().min(0).max(10).optional().describe("우선순위 0-10 (기본 0)"),
       folderId: z.string().optional().describe("폴더 ID (brief의 폴더 목록에서 확인)"),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleStartTask(args, pid, config) }] };
@@ -121,7 +128,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
 
   server.tool(
     "finish_task",
-    "태스크를 DONE으로 완료하고 세션 요약을 저장해요. update_task(DONE) + log_session 두 번 호출을 한 번으로 줄여요. keyDecisions에는 이 태스크에서 내린 핵심 결정/인사이트를 추출해서 전달하세요 — 아키텍처 선택, 버그 원인, 방향 변경 등 다음 세션에서 recall로 찾을 만한 내용만. 단순 구현 작업은 생략.",
+    "태스크를 DONE으로 완료해요. keyDecisions에는 이 태스크에서 내린 핵심 결정/인사이트를 추출해서 전달하세요 — 아키텍처 선택, 버그 원인, 방향 변경 등 다음 세션에서 recall로 찾을 만한 내용만. 단순 구현 작업은 생략.",
     {
       ...cwdParam,
       taskSeq: z.number().int().positive().describe("완료할 태스크 번호 (예: 1, 42)"),
@@ -140,6 +147,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
         .describe("실제로 무엇을 구현/변경했는지 자유 서술 (2-5문장). 다음 세션에서 이 태스크 결과를 빠르게 파악하는 데 쓰임."),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleFinishTask(args, pid, config) }] };
@@ -159,27 +167,10 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       priority: z.number().int().min(0).max(10).optional().describe("새 우선순위"),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleUpdateTask({ ...args, projectId: pid }, config) }] };
-    },
-  );
-
-  server.tool(
-    "log_session",
-    "세션 종료 전 작업 요약을 저장해요. AI가 한 일을 간결하게 정리해서 호출하면 웹에서 세션 카드로 확인할 수 있어요.",
-    {
-      ...cwdParam,
-      summary: z.string().describe("이번 세션에서 한 작업 요약 (2-5문장)"),
-      aiTool: z
-        .enum(["claude", "cursor", "gemini", "codex"])
-        .optional()
-        .describe("사용 중인 AI 도구 (생략 시 unknown)"),
-    },
-    async (args) => {
-      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
-      if (!pid) return NOT_REGISTERED;
-      return { content: [{ type: "text" as const, text: await handleLogSession(args, pid, config, MCP_SESSION_ID) }] };
     },
   );
 
@@ -191,6 +182,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       slug: z.string().describe("스킬 슬러그 (예: planner, reviewer)"),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleLoadSkill(args, pid, config) }] };
@@ -205,6 +197,7 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       taskSeq: z.number().int().positive().describe("태스크 번호 (예: 1, 42)"),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleGetTask(args, pid, config) }] };
@@ -223,9 +216,25 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
       module: z.string().optional().describe("모듈 필터 (예: auth)"),
     },
     async (args) => {
+      if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleListTasks(args, pid, config) }] };
+    },
+  );
+
+  server.tool(
+    "create_folder",
+    "태스크 폴더를 새로 만들어요. brief의 폴더 목록에 없는 폴더가 필요할 때 사용하세요.",
+    {
+      ...cwdParam,
+      name: z.string().describe("폴더 이름"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      return { content: [{ type: "text" as const, text: await handleCreateFolder(args, pid, config) }] };
     },
   );
 
@@ -235,9 +244,10 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
     {
       cwd: z.string().describe("프로젝트 절대경로"),
     },
-    async (args) => ({
-      content: [{ type: "text" as const, text: await handleUploadPrompt(args, config) }],
-    }),
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      return { content: [{ type: "text" as const, text: await handleUploadPrompt(args, config) }] };
+    },
   );
 
   server.tool(
@@ -272,13 +282,13 @@ function createServer(config: McpConfig, startCwd: string): McpServer {
   return server;
 }
 
-export async function startStdio(config: McpConfig, cwd: string): Promise<void> {
+export async function startStdio(config: McpConfig | null, cwd: string): Promise<void> {
   const server = createServer(config, cwd);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
-export async function startHttp(port: number, config: McpConfig, cwd: string): Promise<void> {
+export async function startHttp(port: number, config: McpConfig | null, cwd: string): Promise<void> {
   const mcpServer = createServer(config, cwd);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await mcpServer.connect(transport);

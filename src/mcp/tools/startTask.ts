@@ -25,7 +25,8 @@ export async function handleStartTask(
   let output = `태스크 시작됨: #${data.task.seq} "${data.task.title}" → IN_PROGRESS`;
   if (data.matchedSkills && data.matchedSkills.length > 0) {
     const skillLines = data.matchedSkills.map((s) => `- ${s.slug}: ${s.name} — ${s.contextHint}`).join("\n");
-    output += `\n\n이 작업과 관련된 스킬이 있어요. load_skill(slug)로 로드하세요:\n${skillLines}`;
+    output += `\n\n[필수] 매칭된 스킬이 있어요. 구현 전 반드시 load_skill(slug)를 호출하세요:\n${skillLines}`;
   }
+  output += `\n\n다음 단계: recall("${data.task.title}")로 관련 과거 결정을 검색하세요.`;
   return output;
 }

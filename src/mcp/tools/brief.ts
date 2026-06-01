@@ -78,6 +78,24 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
   lines.push(...statusCtx);
   lines.push("");
 
+  // 진행 중·대기 태스크 목록 (에이전트가 현재 상태 파악용)
+  if (b.inProgressTasks.length > 0) {
+    lines.push(`진행 중인 태스크:`);
+    for (const t of b.inProgressTasks) {
+      const folder = t.folderId ? folderMap.get(t.folderId) : null;
+      lines.push(`- #${t.seq} ${t.title}${t.module ? ` [${t.module}]` : ""}${folder ? ` (${folder})` : ""}`);
+    }
+    lines.push("");
+  }
+  if (b.pendingTasks.length > 0) {
+    lines.push(`대기 중인 태스크:`);
+    for (const t of b.pendingTasks) {
+      const folder = t.folderId ? folderMap.get(t.folderId) : null;
+      lines.push(`- #${t.seq} ${t.title}${t.module ? ` [${t.module}]` : ""}${folder ? ` (${folder})` : ""}`);
+    }
+    lines.push("");
+  }
+
   // 폴더 목록 (add_task 시 folderId 참조용)
   if (activeFolders.length > 0) {
     lines.push(`폴더 목록 (add_task 시 folderId 사용):`);
@@ -89,26 +107,32 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
 
   lines.push(`추천 태스크:`);
 
-  // 1번: AI 추천 최우선 1개
-  const topAi = b.recommendedNextTasks?.[0];
-  if (topAi) {
-    lines.push(`1) ${topAi.title}${topAi.reason ? ` — ${topAi.reason}` : ""}`);
+  // DB AI 추천 최대 3개 먼저 출력
+  const aiRecs = b.recommendedNextTasks ?? [];
+  let recNum = 1;
+  for (const rec of aiRecs.slice(0, 3)) {
+    lines.push(`${recNum}) ${rec.title}${rec.reason ? ` — ${rec.reason}` : ""}`);
+    recNum++;
   }
 
-  // 2-3번: 대기 태스크 + 완료 태스크 + 커밋 기반 컨텍스트 → Claude가 채움
-  const recContext: string[] = [];
-  if (recentDone.length > 0) {
-    recContext.push("최근 완료 태스크: " + recentDone.map((t) => t.title).join(", "));
-  }
-  if (commits.length > 0) {
-    recContext.push("최근 커밋: " + commits.map((c) => c.replace(/^[a-f0-9]+ /, "")).join(" / "));
-  }
-
-  if (recContext.length > 0) {
-    lines.push(`[아래 컨텍스트 분석 후 2), 3) 추천 태스크를 "N) 태스크명" 형식으로 각 한 줄씩 추가하세요]`);
-    lines.push(...recContext);
-  } else if (!topAi) {
-    lines.push("등록된 태스크나 이전 작업이 없어요. 하려는 작업을 말씀해주세요.");
+  // DB 추천이 3개 미만이면 대기 태스크·커밋 컨텍스트로 나머지 채우도록 지시
+  if (recNum <= 3) {
+    const recContext: string[] = [];
+    if (b.pendingTasks.length > 0) {
+      recContext.push("대기 중인 태스크: " + b.pendingTasks.slice(0, 5).map((t) => `#${t.seq} ${t.title}`).join(", "));
+    }
+    if (recentDone.length > 0) {
+      recContext.push("최근 완료 태스크: " + recentDone.map((t) => t.title).join(", "));
+    }
+    if (commits.length > 0) {
+      recContext.push("최근 커밋: " + commits.map((c) => c.replace(/^[a-f0-9]+ /, "")).join(" / "));
+    }
+    if (recContext.length > 0) {
+      lines.push(`[위 정보를 바탕으로 ${recNum})~3) 추천 태스크를 "N) 태스크명" 형식으로 각 한 줄씩 추가하세요]`);
+      lines.push(...recContext);
+    } else if (recNum === 1) {
+      lines.push("등록된 태스크나 이전 작업이 없어요. 하려는 작업을 말씀해주세요.");
+    }
   }
 
   // 사용 가능한 스킬 목록
@@ -128,7 +152,7 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
 
 function getRecentCommits(cwd: string): string[] {
   try {
-    const out = execSync("git log --oneline --no-merges -5", { cwd, encoding: "utf8", timeout: 3000 });
+    const out = execSync("git log --oneline --no-merges -10", { cwd, encoding: "utf8", timeout: 3000 });
     return out.trim().split("\n").filter(Boolean);
   } catch {
     return [];
