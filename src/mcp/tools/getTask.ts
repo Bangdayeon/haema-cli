@@ -39,6 +39,7 @@ export async function handleGetTask(
   ];
   if (t.module) lines.push(`모듈: ${t.module}`);
   if (t.priority) lines.push(`우선순위: ${t.priority}`);
+  if (t.folderId) lines.push(`폴더: ${t.folderId}`);
   if (t.description) lines.push(`\n설명:\n${t.description}`);
   if (t.outcome) lines.push(`\n결과:\n${t.outcome}`);
   if (t.keyDecisions.length > 0) lines.push(`\n핵심 결정:\n${t.keyDecisions.map((d) => `- ${d}`).join("\n")}`);
