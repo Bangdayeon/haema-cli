@@ -7,7 +7,6 @@ type Task = { id: string; seq: number; title: string; module: string | null; pri
 type DoneTask = { seq: number; title: string; outcome: string | null; keyDecisions: string[] };
 type NextTask = { title: string; reason?: string; priority: "high" | "medium" | "low" };
 type Folder = { id: string; name: string; taskCount: number };
-type Skill = { slug: string; name: string; contextHint: string; category: string };
 type CustomSkill = { slug: string; name: string; folder: string; contextHint: string };
 type SkillSuggestion = { name: string; description: string; folder: string; content: string; patternSummary: string };
 
@@ -25,12 +24,10 @@ type Brief = {
   recentlyDone: DoneTask[];
   recentlyModified?: RecentTask[];
   folders: Folder[];
-  availableSkills?: Skill[];
   customSkills?: CustomSkill[];
   skillSuggestions?: SkillSuggestion[];
   aiSummary?: AiSummary;
   recommendedNextTasks?: NextTask[];
-  briefSkillContent?: string;
   longTermTasks?: LongTermTask[];
   latestReflection?: LatestReflection;
   memoryContext?: string | null;
@@ -172,15 +169,7 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     }
   }
 
-  // 사용 가능한 스킬 목록 (플랫폼 스킬)
-  if (b.availableSkills && b.availableSkills.length > 0) {
-    lines.push(`\n사용 가능한 스킬 (load_skill로 로드):`);
-    for (const s of b.availableSkills) {
-      lines.push(`- ${s.slug}: ${s.name} — ${s.contextHint}`);
-    }
-  }
-
-  // 프로젝트 커스텀 스킬 (folder별 그룹핑)
+  // 프로젝트 스킬 (folder별 그룹핑)
   if (b.customSkills && b.customSkills.length > 0) {
     const byFolder = new Map<string, CustomSkill[]>();
     for (const s of b.customSkills) {
@@ -205,10 +194,6 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
       lines.push(`  근거: ${s.patternSummary}`);
       lines.push(`  → propose_skill(name="${s.name}", folder="${s.folder}", ...)로 등록하세요.`);
     }
-  }
-
-  if (b.briefSkillContent) {
-    lines.push(`\n---\n${b.briefSkillContent}`);
   }
 
   return lines.join("\n");
