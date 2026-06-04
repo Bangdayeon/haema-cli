@@ -190,6 +190,47 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
   );
 
   server.tool(
+    "propose_skill",
+    "이 프로젝트에 커스텀 스킬을 등록해요. 반복 패턴을 3번 이상 작업했을 때 스킬로 저장하면 다음 세션에서 load_skill로 바로 불러올 수 있어요.",
+    {
+      ...cwdParam,
+      name: z.string().describe("스킬 이름 (예: '타입스크립트 마이그레이션')"),
+      description: z.string().describe("한 줄 설명"),
+      folder: z.string().describe("스킬 그룹 폴더명 (예: 리팩토링, 테스트, 배포)"),
+      content: z.string().describe("에이전트가 따를 마크다운 지침 전문"),
+      patternSummary: z.string().optional().describe("이 패턴이 필요하다고 판단한 근거"),
+      contextHint: z.string().describe("이 스킬을 사용해야 하는 상황 (예: 외부 API 연동 태스크 시작 전에 사용)"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      const res = await fetch(`${config.appUrl}/api/memory/custom-skills`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` },
+        body: JSON.stringify({
+          projectId: pid,
+          name: args.name,
+          description: args.description,
+          folder: args.folder,
+          content: args.content,
+          patternSummary: args.patternSummary,
+          contextHint: args.contextHint,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const data = await res.json() as { ok: boolean; skill?: { slug: string; name: string }; error?: string };
+      if (!data.ok) return { content: [{ type: "text" as const, text: `오류: ${data.error}` }] };
+      return {
+        content: [{
+          type: "text" as const,
+          text: `스킬 등록 완료: "${data.skill!.name}" (슬러그: ${data.skill!.slug})\n다음 세션부터 load_skill(slug="${data.skill!.slug}")로 불러올 수 있어요.`,
+        }],
+      };
+    },
+  );
+
+  server.tool(
     "task_detail",
     "태스크 하나의 전체 상세 정보를 조회해요. title, description, status, module, outcome, keyDecisions 등을 반환해요.",
     {
@@ -220,6 +261,85 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleListTasks(args, pid, config) }] };
+    },
+  );
+
+  server.tool(
+    "pin_task",
+    "태스크를 장기 기억(LONG_TERM)으로 고정해요. AI 자동 감쇠 대상에서 영구 제외되며 brief에 항상 표시됩니다.",
+    {
+      ...cwdParam,
+      taskSeq: z.number().int().positive().describe("고정할 태스크 번호 (예: 1, 42)"),
+      pin: z.boolean().optional().describe("true=고정, false=고정 해제 (기본값 true)"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      const isPinned = args.pin !== false;
+      const res = await fetch(`${config.appUrl}/api/memory/tasks/${args.taskSeq}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` },
+        body: JSON.stringify({ projectId: pid, isPinned }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string };
+      if (!data.ok) return { content: [{ type: "text" as const, text: `오류: ${data.error}` }] };
+      return {
+        content: [{
+          type: "text" as const,
+          text: isPinned
+            ? `#${args.taskSeq} 태스크를 장기 기억으로 고정했어요. AI 감쇠 대상에서 제외됩니다.`
+            : `#${args.taskSeq} 태스크의 장기 기억 고정을 해제했어요.`,
+        }],
+      };
+    },
+  );
+
+  server.tool(
+    "get_insights",
+    "최근 AI 메모리 분석 인사이트를 조회해요. 프로젝트 패턴, 위험 요소, 추천 태스크를 포함해요.",
+    {
+      ...cwdParam,
+      limit: z.number().int().min(1).max(10).optional().describe("최대 reflection 수 (기본 3)"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      const limit = args.limit ?? 3;
+      const res = await fetch(`${config.appUrl}/api/memory/reflections?projectId=${pid}&limit=${limit}`, {
+        headers: { authorization: `Bearer ${config.apiKey}` },
+      });
+      const data = await res.json() as { ok: boolean; reflections?: Array<{
+        id: string; createdAt: string; analyzedTaskCount: number; triggerReason: string;
+        contextSummary: string | null;
+        insights: Array<{ type: string; text: string }>;
+        suggestedTasks: Array<{ title: string; reason: string; priority: string }>;
+      }>; error?: string };
+      if (!data.ok || !data.reflections) {
+        return { content: [{ type: "text" as const, text: `인사이트가 아직 없어요. 태스크를 더 완료하면 AI가 분석을 생성해요.` }] };
+      }
+      const lines: string[] = [];
+      for (const r of data.reflections) {
+        const date = new Date(r.createdAt).toLocaleDateString("ko-KR");
+        lines.push(`## ${date} 분석 (${r.analyzedTaskCount}개 태스크, ${r.triggerReason === "threshold" ? "임계값 도달" : "정기"})`);
+        if (r.contextSummary) lines.push(`\n**프로젝트 맥락:** ${r.contextSummary}`);
+        if (r.insights.length > 0) {
+          lines.push(`\n**인사이트:**`);
+          for (const ins of r.insights) {
+            const label = ins.type === "pattern" ? "패턴" : ins.type === "risk" ? "위험" : "인사이트";
+            lines.push(`- [${label}] ${ins.text}`);
+          }
+        }
+        if (r.suggestedTasks.length > 0) {
+          lines.push(`\n**추천 태스크:**`);
+          for (const t of r.suggestedTasks) {
+            lines.push(`- ${t.title} (${t.priority}) — ${t.reason}`);
+          }
+        }
+        lines.push("");
+      }
+      return { content: [{ type: "text" as const, text: lines.join("\n") || "분석 결과가 없어요." }] };
     },
   );
 

@@ -11,6 +11,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__votra-memory__finish_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/suggest-skill.sh",
+            "statusMessage": "스킬 제안 확인 중..."
+          }
+        ]
+      }
     ]
   }
 }

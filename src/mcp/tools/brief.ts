@@ -8,9 +8,14 @@ type DoneTask = { seq: number; title: string; outcome: string | null; keyDecisio
 type NextTask = { title: string; reason?: string; priority: "high" | "medium" | "low" };
 type Folder = { id: string; name: string; taskCount: number };
 type Skill = { slug: string; name: string; contextHint: string; category: string };
+type CustomSkill = { slug: string; name: string; folder: string; contextHint: string };
+type SkillSuggestion = { name: string; description: string; folder: string; content: string; patternSummary: string };
 
 type RecentTask = { seq: number; title: string; status: string; updatedAt: string };
 type AiSummary = { summary: string; warnings: string[]; suggestions: string[] };
+type LongTermTask = { seq: number; title: string; lastAccessedAt: string | null };
+type ReflectionInsight = { type: string; text: string };
+type LatestReflection = { contextSummary: string | null; insights: ReflectionInsight[] };
 
 type Brief = {
   projectTitle: string;
@@ -21,9 +26,14 @@ type Brief = {
   recentlyModified?: RecentTask[];
   folders: Folder[];
   availableSkills?: Skill[];
+  customSkills?: CustomSkill[];
+  skillSuggestions?: SkillSuggestion[];
   aiSummary?: AiSummary;
   recommendedNextTasks?: NextTask[];
   briefSkillContent?: string;
+  longTermTasks?: LongTermTask[];
+  latestReflection?: LatestReflection;
+  memoryContext?: string | null;
 };
 
 type BriefResponse = { ok: true; brief: Brief } | { ok: false; error: string };
@@ -135,11 +145,65 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     }
   }
 
-  // 사용 가능한 스킬 목록
+  // AI 프로젝트 맥락 (성장형 plain text 기억)
+  if (b.memoryContext) {
+    lines.push(`\nAI 프로젝트 맥락 (자기학습 기억):\n${b.memoryContext}`);
+  }
+
+  // 장기 기억 (LONG_TERM) 태스크
+  if (b.longTermTasks && b.longTermTasks.length > 0) {
+    lines.push(`\n장기 기억 (영구 보존):`);
+    for (const t of b.longTermTasks) {
+      const ago = t.lastAccessedAt ? daysAgo(t.lastAccessedAt) : null;
+      lines.push(`- #${t.seq} ${t.title}${ago !== null ? ` [${ago}일 전 접근]` : ""}`);
+    }
+  }
+
+  // 최근 AI 메모리 인사이트
+  if (b.latestReflection) {
+    const r = b.latestReflection;
+    if (r.contextSummary || (r.insights && r.insights.length > 0)) {
+      lines.push(`\nAI 메모리 분석:`);
+      if (r.contextSummary) lines.push(`프로젝트 맥락: ${r.contextSummary}`);
+      for (const ins of (r.insights ?? []).slice(0, 3)) {
+        const label = ins.type === "pattern" ? "패턴" : ins.type === "risk" ? "위험" : "인사이트";
+        lines.push(`- [${label}] ${ins.text}`);
+      }
+    }
+  }
+
+  // 사용 가능한 스킬 목록 (플랫폼 스킬)
   if (b.availableSkills && b.availableSkills.length > 0) {
     lines.push(`\n사용 가능한 스킬 (load_skill로 로드):`);
     for (const s of b.availableSkills) {
       lines.push(`- ${s.slug}: ${s.name} — ${s.contextHint}`);
+    }
+  }
+
+  // 프로젝트 커스텀 스킬 (folder별 그룹핑)
+  if (b.customSkills && b.customSkills.length > 0) {
+    const byFolder = new Map<string, CustomSkill[]>();
+    for (const s of b.customSkills) {
+      const arr = byFolder.get(s.folder) ?? [];
+      arr.push(s);
+      byFolder.set(s.folder, arr);
+    }
+    lines.push(`\n프로젝트 커스텀 스킬 (load_skill로 로드):`);
+    for (const [folder, skills] of byFolder) {
+      lines.push(`[${folder}]`);
+      for (const s of skills) {
+        lines.push(`- ${s.slug}: ${s.name} — ${s.contextHint}`);
+      }
+    }
+  }
+
+  // 스킬 제안 (패턴 감지됨)
+  if (b.skillSuggestions && b.skillSuggestions.length > 0) {
+    lines.push(`\n💡 스킬 제안 (반복 패턴 감지됨):`);
+    for (const s of b.skillSuggestions) {
+      lines.push(`- "${s.name}": ${s.description} [폴더: ${s.folder}]`);
+      lines.push(`  근거: ${s.patternSummary}`);
+      lines.push(`  → propose_skill(name="${s.name}", folder="${s.folder}", ...)로 등록하세요.`);
     }
   }
 
@@ -148,6 +212,10 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
   }
 
   return lines.join("\n");
+}
+
+function daysAgo(isoDate: string): number {
+  return Math.floor((Date.now() - new Date(isoDate).getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function getRecentCommits(cwd: string): string[] {

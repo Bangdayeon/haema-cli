@@ -34,6 +34,7 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 - \`list_tasks\` — 태스크 목록 조회
 - \`create_folder\` — 태스크 폴더 생성
 - \`load_skill\` — 스킬 전체 내용 로드
+- \`propose_skill\` — 반복 패턴을 커스텀 스킬로 등록
 - \`upload_prompt\` — CLAUDE.md/AGENTS.md/SKILL.md 업로드
 - \`signin\` / \`whoami\` / \`signout\` — 계정 관리
 
@@ -77,6 +78,7 @@ votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요
 \`finish_task(taskSeq, summary, keyDecisions, outcome)\`로 태스크를 완료해요.
 - \`outcome\`: 수정한 파일 경로 포함
 - \`keyDecisions\`: 아키텍처 선택, 버그 원인, 방향 변경 등 다음 세션에서 recall로 찾을 결정만
+- 완료 후 스킬 제안 알림이 표시되면 \`propose_skill\`로 등록하세요.
 
 **7단계 — 다음 태스크 제안**
 완료 후 brief의 대기 태스크 또는 현재 맥락을 바탕으로 다음 태스크 3개를 제안하고 1단계부터 반복해요.
@@ -137,6 +139,76 @@ function parseTargets(flag: string): ToolKind[] {
   return parts;
 }
 
+const SUGGEST_SKILL_HOOK = `#!/bin/bash
+# PostToolUse hook: finish_task 완료 후 패턴 기반 스킬 제안 확인
+AUTH="$HOME/.votra/auth.json"
+[ -f "$AUTH" ] || exit 0
+APP_URL=\$(jq -r '.appUrl // empty' "$AUTH" 2>/dev/null)
+API_KEY=\$(jq -r '.apiKey // empty' "$AUTH" 2>/dev/null)
+[ -z "$APP_URL" ] || [ -z "$API_KEY" ] && exit 0
+TOOL_DATA=\$(cat)
+PROJECT_ID=\$(echo "$TOOL_DATA" | jq -r '.tool_response.projectId // .tool_input.projectId // empty' 2>/dev/null)
+[ -z "$PROJECT_ID" ] && exit 0
+RESP=\$(curl -sf --max-time 5 -H "Authorization: Bearer $API_KEY" "\${APP_URL}/api/memory/skill-suggestions?projectId=\${PROJECT_ID}" 2>/dev/null)
+[ $? -ne 0 ] && exit 0
+COUNT=\$(echo "$RESP" | jq -r '.count // 0' 2>/dev/null)
+[ "\${COUNT}" -le 0 ] && exit 0
+NAMES=\$(echo "$RESP" | jq -r '[.suggestions[].name] | join(", ")' 2>/dev/null)
+echo ""
+echo "💡 반복 패턴 \${COUNT}개 감지: \${NAMES}"
+echo "propose_skill 툴로 등록하면 다음 세션부터 load_skill로 자동 로드돼요."
+`;
+
+async function deploySkillHook(): Promise<void> {
+  const hooksDir = path.join(homedir(), ".votra", "hooks");
+  const hookPath = path.join(hooksDir, "suggest-skill.sh");
+  try {
+    await fs.mkdir(hooksDir, { recursive: true });
+    await fs.writeFile(hookPath, SUGGEST_SKILL_HOOK, { encoding: "utf8", mode: 0o755 });
+    console.log(`  [완료] ${hookPath} 훅 스크립트를 배포했어요.`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`  [실패] 훅 스크립트 배포 실패: ${msg}`);
+  }
+}
+
+async function injectClaudePostToolHook(): Promise<void> {
+  const settingsPath = path.join(homedir(), ".claude", "settings.json");
+  const hookEntry = {
+    matcher: "mcp__votra-memory__finish_task",
+    hooks: [
+      {
+        type: "command",
+        command: `bash ${path.join(homedir(), ".votra", "hooks", "suggest-skill.sh")}`,
+        statusMessage: "스킬 제안 확인 중...",
+      },
+    ],
+  };
+  try {
+    await fs.mkdir(path.dirname(settingsPath), { recursive: true });
+    let settings: Record<string, unknown> = {};
+    try {
+      const raw = await fs.readFile(settingsPath, "utf8");
+      settings = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      // 없으면 새로 생성
+    }
+    const hooks = (settings.hooks ?? {}) as Record<string, unknown[]>;
+    const postHooks = (hooks.PostToolUse ?? []) as Array<{ matcher: string }>;
+    if (postHooks.some((h) => h.matcher === hookEntry.matcher)) {
+      console.log(`  [건너뜀] ${settingsPath} 에 이미 스킬 제안 훅이 있어요.`);
+      return;
+    }
+    hooks.PostToolUse = [...postHooks, hookEntry];
+    settings.hooks = hooks;
+    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
+    console.log(`  [완료] ${settingsPath} 에 PostToolUse 훅을 추가했어요.`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`  [실패] Claude settings.json 수정 실패: ${msg}`);
+  }
+}
+
 async function configureTool(tool: ToolKind, mcpServerBlock: { command: string; args: string[] }): Promise<void> {
   const cfg = TOOL_CONFIGS[tool];
   console.log(`\n── ${cfg.name} ──`);
@@ -144,6 +216,8 @@ async function configureTool(tool: ToolKind, mcpServerBlock: { command: string; 
   if (tool === "claude") {
     await injectMcpJson(cfg.mcpConfigPath, "Claude Code", mcpServerBlock);
     await injectInstruction(cfg.instructionPath, WORKFLOW_INSTRUCTION, "CLAUDE.md");
+    await deploySkillHook();
+    await injectClaudePostToolHook();
   } else if (tool === "cursor") {
     await injectMcpJson(cfg.mcpConfigPath, "Cursor", mcpServerBlock);
     await injectCursorRule(cfg.instructionPath);

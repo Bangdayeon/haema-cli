@@ -13,6 +13,17 @@ type CallbackResult = { token: string; email?: string };
 
 export async function handleSignin(args: { appUrl?: string }): Promise<string> {
   const appUrl = stripTrailingSlash(args.appUrl ?? process.env.VOTRA_APP_URL ?? DEFAULT_APP_URL);
+
+  if (process.env.MOCK_AUTH === "true") {
+    await writeAuth({
+      appUrl,
+      apiKey: `votra_mock_${randomBytes(16).toString("hex")}`,
+      email: "dev@mock.local",
+      signedInAt: new Date().toISOString(),
+    });
+    return `🛠 Mock 로그인 완료 (MOCK_AUTH=true)\n자격증명 저장: ${authFilePath()}`;
+  }
+
   const state = randomBytes(16).toString("hex");
 
   const { port, server, resultPromise } = await startCallbackServer(state);
