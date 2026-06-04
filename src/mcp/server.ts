@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { McpConfig } from "./mcpClient.js";
 import { resolveOrInitProject, resolveProject } from "./resolveProjectId.js";
 import { handleAddTask } from "./tools/addTask.js";
+import { handleApplyHooks } from "./tools/applyHooks.js";
 import { handleBrief } from "./tools/brief.js";
 import { handleCreateFolder } from "./tools/createFolder.js";
 import { handleGetTask } from "./tools/getTask.js";
@@ -367,6 +368,18 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
     async (args) => {
       if (!config) return NOT_LOGGED_IN;
       return { content: [{ type: "text" as const, text: await handleUploadPrompt(args, config) }] };
+    },
+  );
+
+  server.tool(
+    "apply_hooks",
+    "서버에서 프로젝트 SOP 훅을 가져와 로컬 Claude Code 설정에 적용해요. 반복 패턴에서 자동 생성된 훅 스크립트를 ~/.votra/hooks/에 배포하고 ~/.claude/settings.json에 등록해요.",
+    cwdParam,
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      return { content: [{ type: "text" as const, text: await handleApplyHooks(pid, config) }] };
     },
   );
 
