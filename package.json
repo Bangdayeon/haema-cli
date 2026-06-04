@@ -1,6 +1,6 @@
 {
   "name": "@votra/cli",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "votra 세션 간 연결을 위한 MCP 서버",
   "license": "MIT",
   "type": "module",
