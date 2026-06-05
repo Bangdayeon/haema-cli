@@ -24,6 +24,11 @@ export async function handleSignin(args: { appUrl?: string }): Promise<string> {
     return `🛠 Mock 로그인 완료 (MOCK_AUTH=true)\n자격증명 저장: ${authFilePath()}`;
   }
 
+  const reachable = await checkServerReachable(appUrl);
+  if (!reachable) {
+    return `서버에 연결할 수 없어요: ${appUrl}\n서버가 실행 중인지 확인한 뒤 다시 시도해주세요.`;
+  }
+
   const state = randomBytes(16).toString("hex");
 
   const { port, server, resultPromise } = await startCallbackServer(state);
@@ -59,6 +64,18 @@ export async function handleSignin(args: { appUrl?: string }): Promise<string> {
 
   const who = result.email ? ` (${result.email})` : "";
   return `로그인 성공${who}\n자격증명 저장: ${authFilePath()}`;
+}
+
+async function checkServerReachable(appUrl: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    await fetch(appUrl, { method: "HEAD", signal: controller.signal });
+    clearTimeout(timer);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function stripTrailingSlash(s: string): string {
