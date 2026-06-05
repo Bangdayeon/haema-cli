@@ -6,7 +6,7 @@ type Task = {
   seq: number;
   title: string;
   status: string;
-  module: string | null;
+  tool: string | null;
   priority: number;
   description: string | null;
 };
@@ -20,13 +20,13 @@ const STATUS_EMOJI: Record<string, string> = {
 };
 
 export async function handleListTasks(
-  args: { status?: string; module?: string },
+  args: { status?: string; tool?: string },
   projectId: string,
   config: McpConfig,
 ): Promise<string> {
   const params: Record<string, string> = { projectId };
   if (args.status) params.status = args.status;
-  if (args.module) params.module = args.module;
+  if (args.tool) params.tool = args.tool;
 
   const data = await mcpGet<ListResponse>(config, "/api/memory/tasks", params);
   if (!data.ok) throw new Error(data.error);
@@ -35,7 +35,7 @@ export async function handleListTasks(
 
   const lines = data.tasks.map((t) => {
     const emoji = STATUS_EMOJI[t.status] ?? "•";
-    const mod = t.module ? ` [${t.module}]` : "";
+    const mod = t.tool ? ` [${t.tool}]` : "";
     const desc = t.description ? `\n   ${t.description}` : "";
     return `${emoji} #${t.seq} ${t.title}${mod} (priority: ${t.priority})${desc}`;
   });

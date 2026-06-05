@@ -3,12 +3,12 @@ import { execSync } from "node:child_process";
 import type { McpConfig } from "../mcpClient.js";
 import { mcpGet } from "../mcpClient.js";
 
-type Task = { id: string; seq: number; title: string; module: string | null; priority: number; folderId: string | null };
+type Task = { id: string; seq: number; title: string; tool: string | null; priority: number; folderId: string | null };
 type DoneTask = { seq: number; title: string; outcome: string | null; keyDecisions: string[] };
 type NextTask = { title: string; reason?: string; priority: "high" | "medium" | "low" };
 type Folder = { id: string; name: string; taskCount: number };
-type CustomSkill = { slug: string; name: string; folder: string; contextHint: string };
-type SkillSuggestion = { name: string; description: string; folder: string; content: string; patternSummary: string };
+type ProjectTool = { slug: string; name: string; folder: string; contextHint: string };
+type ToolSuggestion = { name: string; description: string; folder: string; content: string; patternSummary: string };
 
 type RecentTask = { seq: number; title: string; status: string; updatedAt: string };
 type AiSummary = { summary: string; warnings: string[]; suggestions: string[] };
@@ -24,8 +24,8 @@ type Brief = {
   recentlyDone: DoneTask[];
   recentlyModified?: RecentTask[];
   folders: Folder[];
-  customSkills?: CustomSkill[];
-  skillSuggestions?: SkillSuggestion[];
+  tools?: ProjectTool[];
+  toolSuggestions?: ToolSuggestion[];
   aiSummary?: AiSummary;
   recommendedNextTasks?: NextTask[];
   longTermTasks?: LongTermTask[];
@@ -90,7 +90,7 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     lines.push(`진행 중인 태스크:`);
     for (const t of b.inProgressTasks) {
       const folder = t.folderId ? folderMap.get(t.folderId) : null;
-      lines.push(`- #${t.seq} ${t.title}${t.module ? ` [${t.module}]` : ""}${folder ? ` (${folder})` : ""}`);
+      lines.push(`- #${t.seq} ${t.title}${t.tool ? ` [${t.tool}]` : ""}${folder ? ` (${folder})` : ""}`);
     }
     lines.push("");
   }
@@ -98,7 +98,7 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     lines.push(`대기 중인 태스크:`);
     for (const t of b.pendingTasks) {
       const folder = t.folderId ? folderMap.get(t.folderId) : null;
-      lines.push(`- #${t.seq} ${t.title}${t.module ? ` [${t.module}]` : ""}${folder ? ` (${folder})` : ""}`);
+      lines.push(`- #${t.seq} ${t.title}${t.tool ? ` [${t.tool}]` : ""}${folder ? ` (${folder})` : ""}`);
     }
     lines.push("");
   }
@@ -169,30 +169,30 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
     }
   }
 
-  // 프로젝트 스킬 (folder별 그룹핑)
-  if (b.customSkills && b.customSkills.length > 0) {
-    const byFolder = new Map<string, CustomSkill[]>();
-    for (const s of b.customSkills) {
-      const arr = byFolder.get(s.folder) ?? [];
-      arr.push(s);
-      byFolder.set(s.folder, arr);
+  // 프로젝트 툴 (folder별 그룹핑)
+  if (b.tools && b.tools.length > 0) {
+    const byFolder = new Map<string, ProjectTool[]>();
+    for (const t of b.tools) {
+      const arr = byFolder.get(t.folder) ?? [];
+      arr.push(t);
+      byFolder.set(t.folder, arr);
     }
-    lines.push(`\n프로젝트 커스텀 스킬 (load_skill로 로드):`);
-    for (const [folder, skills] of byFolder) {
+    lines.push(`\n프로젝트 툴 (load_tool로 로드):`);
+    for (const [folder, tools] of byFolder) {
       lines.push(`[${folder}]`);
-      for (const s of skills) {
-        lines.push(`- ${s.slug}: ${s.name} — ${s.contextHint}`);
+      for (const t of tools) {
+        lines.push(`- ${t.slug}: ${t.name} — ${t.contextHint}`);
       }
     }
   }
 
-  // 스킬 제안 (패턴 감지됨)
-  if (b.skillSuggestions && b.skillSuggestions.length > 0) {
-    lines.push(`\n💡 스킬 제안 (반복 패턴 감지됨):`);
-    for (const s of b.skillSuggestions) {
+  // 툴 제안 (패턴 감지됨)
+  if (b.toolSuggestions && b.toolSuggestions.length > 0) {
+    lines.push(`\n💡 툴 제안 (반복 패턴 감지됨):`);
+    for (const s of b.toolSuggestions) {
       lines.push(`- "${s.name}": ${s.description} [폴더: ${s.folder}]`);
       lines.push(`  근거: ${s.patternSummary}`);
-      lines.push(`  → propose_skill(name="${s.name}", folder="${s.folder}", ...)로 등록하세요.`);
+      lines.push(`  → propose_tool(name="${s.name}", folder="${s.folder}", ...)로 등록하세요.`);
     }
   }
 

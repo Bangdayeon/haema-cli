@@ -14,7 +14,7 @@ import { handleCreateFolder } from "./tools/createFolder.js";
 import { handleGetTask } from "./tools/getTask.js";
 import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
-import { handleLoadSkill } from "./tools/loadSkill.js";
+import { handleLoadTool } from "./tools/loadTool.js";
 import { handleRecall } from "./tools/recall.js";
 import { handleSignin } from "./tools/signin.js";
 import { handleSignout } from "./tools/signout.js";
@@ -164,7 +164,7 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
       status: z.enum(["PENDING", "IN_PROGRESS", "DONE", "CANCELLED"]).optional().describe("새 상태"),
       title: z.string().optional().describe("새 제목"),
       description: z.string().optional().describe("새 설명"),
-      module: z.string().optional().describe("새 모듈명"),
+      tool: z.string().optional().describe("새 툴명"),
       priority: z.number().int().min(0).max(10).optional().describe("새 우선순위"),
     },
     async (args) => {
@@ -176,37 +176,37 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
   );
 
   server.tool(
-    "load_skill",
-    "상황에 맞는 스킬의 전체 지침을 로드해요. brief 응답에 listed된 사용 가능한 스킬을 맥락에 맞게 호출하세요.",
+    "load_tool",
+    "상황에 맞는 툴의 전체 지침을 로드해요. brief 응답에 listed된 사용 가능한 툴을 맥락에 맞게 호출하세요.",
     {
       ...cwdParam,
-      slug: z.string().describe("스킬 슬러그 (예: planner, reviewer)"),
+      slug: z.string().describe("툴 슬러그 (예: planner, reviewer)"),
     },
     async (args) => {
       if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
-      return { content: [{ type: "text" as const, text: await handleLoadSkill(args, pid, config) }] };
+      return { content: [{ type: "text" as const, text: await handleLoadTool(args, pid, config) }] };
     },
   );
 
   server.tool(
-    "propose_skill",
-    "이 프로젝트에 커스텀 스킬을 등록해요. 반복 패턴을 3번 이상 작업했을 때 스킬로 저장하면 다음 세션에서 load_skill로 바로 불러올 수 있어요.",
+    "propose_tool",
+    "이 프로젝트에 커스텀 툴을 등록해요. 반복 패턴을 3번 이상 작업했을 때 툴로 저장하면 다음 세션에서 load_tool로 바로 불러올 수 있어요.",
     {
       ...cwdParam,
-      name: z.string().describe("스킬 이름 (예: '타입스크립트 마이그레이션')"),
+      name: z.string().describe("툴 이름 (예: '타입스크립트 마이그레이션')"),
       description: z.string().describe("한 줄 설명"),
-      folder: z.string().describe("스킬 그룹 폴더명 (예: 리팩토링, 테스트, 배포)"),
+      folder: z.string().describe("툴 그룹 폴더명 (예: 리팩토링, 테스트, 배포)"),
       content: z.string().describe("에이전트가 따를 마크다운 지침 전문"),
       patternSummary: z.string().optional().describe("이 패턴이 필요하다고 판단한 근거"),
-      contextHint: z.string().describe("이 스킬을 사용해야 하는 상황 (예: 외부 API 연동 태스크 시작 전에 사용)"),
+      contextHint: z.string().describe("이 툴을 사용해야 하는 상황 (예: 외부 API 연동 태스크 시작 전에 사용)"),
     },
     async (args) => {
       if (!config) return NOT_LOGGED_IN;
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
-      const res = await fetch(`${config.appUrl}/api/memory/custom-skills`, {
+      const res = await fetch(`${config.appUrl}/api/memory/tools`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` },
         body: JSON.stringify({
@@ -220,12 +220,12 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
         }),
         signal: AbortSignal.timeout(10_000),
       });
-      const data = await res.json() as { ok: boolean; skill?: { slug: string; name: string }; error?: string };
+      const data = await res.json() as { ok: boolean; tool?: { slug: string; name: string }; error?: string };
       if (!data.ok) return { content: [{ type: "text" as const, text: `오류: ${data.error}` }] };
       return {
         content: [{
           type: "text" as const,
-          text: `스킬 등록 완료: "${data.skill!.name}" (슬러그: ${data.skill!.slug})\n다음 세션부터 load_skill(slug="${data.skill!.slug}")로 불러올 수 있어요.`,
+          text: `툴 등록 완료: "${data.tool!.name}" (슬러그: ${data.tool!.slug})\n다음 세션부터 load_tool(slug="${data.tool!.slug}")로 불러올 수 있어요.`,
         }],
       };
     },
@@ -233,7 +233,7 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
 
   server.tool(
     "task_detail",
-    "태스크 하나의 전체 상세 정보를 조회해요. title, description, status, module, outcome, keyDecisions 등을 반환해요.",
+    "태스크 하나의 전체 상세 정보를 조회해요. title, description, status, tool, outcome, keyDecisions 등을 반환해요.",
     {
       ...cwdParam,
       taskSeq: z.number().int().positive().describe("태스크 번호 (예: 1, 42)"),
@@ -248,14 +248,14 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
 
   server.tool(
     "list_tasks",
-    "태스크 목록을 봐요. status 와 module 로 필터링 가능.",
+    "태스크 목록을 봐요. status 와 tool 로 필터링 가능.",
     {
       ...cwdParam,
       status: z
         .enum(["PENDING", "IN_PROGRESS", "DONE", "CANCELLED"])
         .optional()
         .describe("상태 필터"),
-      module: z.string().optional().describe("모듈 필터 (예: auth)"),
+      tool: z.string().optional().describe("툴 필터 (예: auth)"),
     },
     async (args) => {
       if (!config) return NOT_LOGGED_IN;

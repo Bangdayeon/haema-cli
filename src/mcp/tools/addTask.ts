@@ -6,7 +6,7 @@ type TaskResponse =
   | { ok: false; error: string };
 
 export async function handleAddTask(
-  args: { title: string; description?: string; module?: string; priority?: number; folderId?: string },
+  args: { title: string; description?: string; tool?: string; priority?: number; folderId?: string },
   projectId: string,
   config: McpConfig,
 ): Promise<string> {
@@ -14,7 +14,7 @@ export async function handleAddTask(
     projectId,
     title: args.title,
     description: args.description,
-    module: args.module,
+    tool: args.tool,
     priority: args.priority,
     folderId: args.folderId,
   });

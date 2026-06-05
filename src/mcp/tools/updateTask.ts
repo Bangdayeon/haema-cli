@@ -11,7 +11,7 @@ export async function handleUpdateTask(
     status?: string;
     title?: string;
     description?: string;
-    module?: string;
+    tool?: string;
     priority?: number;
   },
   config: McpConfig,

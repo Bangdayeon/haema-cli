@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__votra-memory__start_task",
+        "matcher": "mcp__haema-memory__start_task",
         "hooks": [
           {
             "type": "command",
@@ -14,7 +14,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__votra-memory__finish_task",
+        "matcher": "mcp__haema-memory__finish_task",
         "hooks": [
           {
             "type": "command",
