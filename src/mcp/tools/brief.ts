@@ -32,9 +32,17 @@ type Brief = {
   longTermTasks?: LongTermTask[];
   latestReflection?: LatestReflection;
   memoryContext?: string | null;
+  enabledIntegrations?: string[];
 };
 
 type BriefResponse = { ok: true; brief: Brief } | { ok: false; error: string };
+
+const INTEGRATION_FETCH_GUIDE: Record<string, string> = {
+  notion: "Notion MCP로 최근 수정된 페이지 3개를 조회한 뒤 ingest_context(source=\"notion\")로 저장하세요",
+  slack: "Slack MCP로 오늘 중요 스레드를 조회한 뒤 ingest_context(source=\"slack\")로 저장하세요",
+  github: "GitHub MCP로 최근 이슈·PR 토론을 조회한 뒤 ingest_context(source=\"github\")로 저장하세요",
+  linear: "Linear MCP로 최근 완료·진행 티켓을 조회한 뒤 ingest_context(source=\"linear\")로 저장하세요",
+};
 
 export async function handleBrief(projectId: string, config: McpConfig): Promise<string> {
   const data = await mcpGet<BriefResponse>(config, "/api/memory/brief", { projectId });
@@ -206,6 +214,22 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
       lines.push(`  근거: ${s.patternSummary}`);
       lines.push(`  → propose_tool(name="${s.name}", folder="${s.folder}", ...)로 등록하세요.`);
     }
+  }
+
+  // 연결된 외부 서비스
+  const integrations = b.enabledIntegrations ?? [];
+  if (integrations.length > 0) {
+    lines.push(`\n## 연결된 외부 서비스`);
+    lines.push(`${integrations.join(", ")} 활성화됨.`);
+    lines.push(`\n[AI 지시: 세션 시작 시 아래 서비스에서 최신 맥락을 가져와 ingest_context로 저장하세요]`);
+    for (const src of integrations) {
+      const guide = INTEGRATION_FETCH_GUIDE[src] ?? `${src} MCP로 최신 내용을 조회 → ingest_context(source="${src}")`;
+      lines.push(`- ${src}: ${guide}`);
+    }
+  } else {
+    lines.push(`\n[AI 지시: 외부 서비스가 연결되지 않았어요. 지금 바로 유저에게 다음과 같이 제안하세요]`);
+    lines.push(`"Notion, Slack, GitHub, Linear 중 haema에 연결할 서비스가 있으신가요? 연결하면 세션 시작 시 최신 맥락을 자동으로 가져올 수 있어요."`);
+    lines.push(`유저가 선택하면 configure_integrations(sources=["notion", ...]) 를 호출해서 바로 연결하세요.`);
   }
 
   return lines.join("\n");

@@ -20,6 +20,8 @@ import { handleSignin } from "./tools/signin.js";
 import { handleSignout } from "./tools/signout.js";
 import { handleStartTask } from "./tools/startTask.js";
 import { handleUpdateTask } from "./tools/updateTask.js";
+import { handleConfigureIntegrations } from "./tools/configureIntegrations.js";
+import { handleIngestContext } from "./tools/ingestContext.js";
 import { handleUploadPrompt } from "./tools/uploadPrompt.js";
 import { handleWhoami } from "./tools/whoami.js";
 
@@ -368,6 +370,59 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
     async (args) => {
       if (!config) return NOT_LOGGED_IN;
       return { content: [{ type: "text" as const, text: await handleUploadPrompt(args, config) }] };
+    },
+  );
+
+  server.tool(
+    "ingest_context",
+    "Notion·Slack·GitHub 등 외부 서비스의 맥락을 Haema 메모리에 저장해요. AI가 핵심 결정을 추출해 recall 검색 대상에 추가해요.",
+    {
+      ...cwdParam,
+      title: z.string().describe("맥락 제목 (예: Notion 페이지 제목, Slack 채널 + 날짜)"),
+      content: z.string().max(8000).describe("저장할 내용 전문 (최대 8000자)"),
+      source: z.string().describe('출처 식별자 (예: "notion", "slack", "github", "meeting")'),
+      type: z
+        .enum(["decision", "insight", "reference"])
+        .optional()
+        .describe("맥락 유형: decision=결정사항(기본), insight=인사이트, reference=참고자료"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      return {
+        content: [{
+          type: "text" as const,
+          text: await handleIngestContext(
+            { title: args.title, content: args.content, source: args.source, type: args.type },
+            pid,
+            config,
+          ),
+        }],
+      };
+    },
+  );
+
+  server.tool(
+    "configure_integrations",
+    "연결된 외부 서비스(Notion·Slack·GitHub 등)를 조회하거나 설정해요. sources 없이 호출하면 현재 상태를 보여줘요.",
+    {
+      ...cwdParam,
+      sources: z
+        .array(z.string())
+        .optional()
+        .describe('연결할 서비스 목록 (예: ["notion", "slack"]). 생략하면 현재 상태 조회.'),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
+      if (!pid) return NOT_REGISTERED;
+      return {
+        content: [{
+          type: "text" as const,
+          text: await handleConfigureIntegrations({ sources: args.sources }, pid, config),
+        }],
+      };
     },
   );
 
