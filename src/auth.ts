@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-const AUTH_DIR = path.join(homedir(), ".votra");
+const AUTH_DIR = path.join(homedir(), ".haema");
 const AUTH_FILE = path.join(AUTH_DIR, "auth.json");
 
 export type Auth = {

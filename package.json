@@ -1,11 +1,11 @@
 {
-  "name": "@votra/cli",
+  "name": "@haema/cli",
   "version": "0.8.1",
-  "description": "votra 세션 간 연결을 위한 MCP 서버",
+  "description": "haema 세션 간 연결을 위한 MCP 서버",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "votra": "dist/index.js"
+    "haema": "dist/index.js"
   },
   "files": [
     "dist"

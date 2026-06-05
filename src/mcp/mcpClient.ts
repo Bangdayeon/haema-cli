@@ -7,7 +7,7 @@ export type McpConfig = {
 
 export async function readMcpConfig(): Promise<McpConfig> {
   const auth = await readAuth();
-  if (!auth) throw new Error("로그인이 필요해요. `votra signin` 을 먼저 실행해주세요.");
+  if (!auth) throw new Error("로그인이 필요해요. `haema signin` 을 먼저 실행해주세요.");
   return { appUrl: auth.appUrl, apiKey: auth.apiKey };
 }
 

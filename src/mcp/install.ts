@@ -3,26 +3,26 @@ import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-const VOTRA_MARKER = "<!-- votra-memory -->";
+const HAEMA_MARKER = "<!-- haema-memory -->";
 
 function resolveMcpServerBlock(): { command: string; args: string[] } {
   const isWindows = process.platform === "win32";
   try {
-    const cmd = isWindows ? "where votra" : "which votra";
+    const cmd = isWindows ? "where haema" : "which haema";
     const result = execSync(cmd, { encoding: "utf8" }).trim();
     const full = result.split("\n")[0].trim();
     if (full) return { command: full, args: ["--stdio"] };
   } catch {
     // PATH에서 못 찾으면 폴백
   }
-  return { command: "votra", args: ["--stdio"] };
+  return { command: "haema", args: ["--stdio"] };
 }
 
 const WORKFLOW_INSTRUCTION = `
-${VOTRA_MARKER}
-## Votra Memory MCP
+${HAEMA_MARKER}
+## Haema Memory MCP
 
-votra-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요.
+haema-memory MCP 서버가 연결되어 있어요. 아래 툴을 활용하세요.
 
 ### 사용 가능한 툴
 - \`brief\` — 현재 프로젝트의 태스크·커밋·추천을 한번에 조회
@@ -95,7 +95,7 @@ const TOOL_CONFIGS: Record<ToolKind, { name: string; mcpConfigPath: string; inst
   cursor: {
     name: "Cursor",
     mcpConfigPath: path.join(homedir(), ".cursor", "mcp.json"),
-    instructionPath: path.join(homedir(), ".cursor", "rules", "votra.mdc"),
+    instructionPath: path.join(homedir(), ".cursor", "rules", "haema.mdc"),
   },
   gemini: {
     name: "Gemini CLI",
@@ -118,7 +118,7 @@ export async function installCommand(forFlag?: string): Promise<void> {
   const targets = parseTargets(forFlag ?? "claude");
   const mcpServerBlock = resolveMcpServerBlock();
 
-  console.log(`\n=== votra-memory MCP 설치 (${targets.map((t) => TOOL_CONFIGS[t].name).join(", ")}) ===\n`);
+  console.log(`\n=== haema-memory MCP 설치 (${targets.map((t) => TOOL_CONFIGS[t].name).join(", ")}) ===\n`);
 
   for (const tool of targets) {
     await configureTool(tool, mcpServerBlock);
@@ -141,7 +141,7 @@ function parseTargets(flag: string): ToolKind[] {
 
 const SUGGEST_SKILL_HOOK = `#!/bin/bash
 # PostToolUse hook: finish_task 완료 후 패턴 기반 스킬 제안 확인
-AUTH="$HOME/.votra/auth.json"
+AUTH="$HOME/.haema/auth.json"
 [ -f "$AUTH" ] || exit 0
 APP_URL=\$(jq -r '.appUrl // empty' "$AUTH" 2>/dev/null)
 API_KEY=\$(jq -r '.apiKey // empty' "$AUTH" 2>/dev/null)
@@ -160,7 +160,7 @@ echo "propose_skill 툴로 등록하면 다음 세션부터 load_skill로 자동
 `;
 
 async function deploySkillHook(): Promise<void> {
-  const hooksDir = path.join(homedir(), ".votra", "hooks");
+  const hooksDir = path.join(homedir(), ".haema", "hooks");
   const hookPath = path.join(hooksDir, "suggest-skill.sh");
   try {
     await fs.mkdir(hooksDir, { recursive: true });
@@ -175,11 +175,11 @@ async function deploySkillHook(): Promise<void> {
 async function injectClaudePostToolHook(): Promise<void> {
   const settingsPath = path.join(homedir(), ".claude", "settings.json");
   const hookEntry = {
-    matcher: "mcp__votra-memory__finish_task",
+    matcher: "mcp__haema-memory__finish_task",
     hooks: [
       {
         type: "command",
-        command: `bash ${path.join(homedir(), ".votra", "hooks", "suggest-skill.sh")}`,
+        command: `bash ${path.join(homedir(), ".haema", "hooks", "suggest-skill.sh")}`,
         statusMessage: "스킬 제안 확인 중...",
       },
     ],
@@ -246,23 +246,23 @@ async function injectMcpJson(filePath: string, label: string, mcpServerBlock: { 
     }
 
     const servers = (existing.mcpServers ?? {}) as Record<string, { command?: string; args?: string[] }>;
-    if ("votra-memory" in servers) {
-      const current = servers["votra-memory"];
+    if ("haema-memory" in servers) {
+      const current = servers["haema-memory"];
       if (current?.command === mcpServerBlock.command) {
-        console.log(`  [건너뜀] ${label} 에 이미 votra-memory 설정이 있어요.`);
+        console.log(`  [건너뜀] ${label} 에 이미 haema-memory 설정이 있어요.`);
         return;
       }
-      servers["votra-memory"] = mcpServerBlock;
+      servers["haema-memory"] = mcpServerBlock;
       existing.mcpServers = servers;
       await fs.writeFile(filePath, JSON.stringify(existing, null, 2) + "\n", "utf8");
-      console.log(`  [업데이트] ${filePath} 의 votra-memory command 경로를 업데이트했어요.`);
+      console.log(`  [업데이트] ${filePath} 의 haema-memory command 경로를 업데이트했어요.`);
       return;
     }
 
-    servers["votra-memory"] = mcpServerBlock;
+    servers["haema-memory"] = mcpServerBlock;
     existing.mcpServers = servers;
     await fs.writeFile(filePath, JSON.stringify(existing, null, 2) + "\n", "utf8");
-    console.log(`  [완료] ${filePath} 에 votra-memory 서버를 추가했어요.`);
+    console.log(`  [완료] ${filePath} 에 haema-memory 서버를 추가했어요.`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`  [실패] ${filePath} 수정 실패: ${msg}`);
@@ -273,7 +273,7 @@ async function injectCursorRule(filePath: string): Promise<void> {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-    const frontmatter = `---\ndescription: Votra Memory MCP 워크플로우\nalwaysApply: true\n---`;
+    const frontmatter = `---\ndescription: Haema Memory MCP 워크플로우\nalwaysApply: true\n---`;
     const fullContent = `${frontmatter}\n${WORKFLOW_INSTRUCTION}`;
 
     let existing = "";
@@ -283,17 +283,17 @@ async function injectCursorRule(filePath: string): Promise<void> {
       // 없으면 새로 생성
     }
 
-    if (existing.includes(VOTRA_MARKER)) {
-      const markerIdx = existing.indexOf(VOTRA_MARKER);
+    if (existing.includes(HAEMA_MARKER)) {
+      const markerIdx = existing.indexOf(HAEMA_MARKER);
       // frontmatter는 마커 앞 부분에 있으므로 마커부터 전체 교체
       const updated = existing.slice(0, markerIdx) + WORKFLOW_INSTRUCTION.trimStart();
       await fs.writeFile(filePath, updated, "utf8");
-      console.log(`  [업데이트] ${filePath} 의 votra-memory 지시문을 최신 버전으로 교체했어요.`);
+      console.log(`  [업데이트] ${filePath} 의 haema-memory 지시문을 최신 버전으로 교체했어요.`);
       return;
     }
 
     await fs.writeFile(filePath, fullContent, "utf8");
-    console.log(`  [완료] ${filePath} 에 votra 규칙을 추가했어요.`);
+    console.log(`  [완료] ${filePath} 에 haema 규칙을 추가했어요.`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`  [실패] ${filePath} 생성 실패: ${msg}`);
@@ -311,31 +311,31 @@ async function injectCodexConfig(filePath: string, mcpServerBlock: { command: st
       // 없으면 새로 생성
     }
 
-    if (existing.includes("votra-memory")) {
-      // votra-memory 섹션 이후의 command 행만 교체 (다른 섹션의 command 행 오염 방지)
-      const sectionMatch = existing.match(/(votra-memory:[\s\S]*?command:\s*)(.+)/);
+    if (existing.includes("haema-memory")) {
+      // haema-memory 섹션 이후의 command 행만 교체 (다른 섹션의 command 행 오염 방지)
+      const sectionMatch = existing.match(/(haema-memory:[\s\S]*?command:\s*)(.+)/);
       const currentCommand = sectionMatch?.[2]?.trim();
       if (currentCommand === mcpServerBlock.command) {
-        console.log(`  [건너뜀] ${filePath} 에 이미 votra-memory 설정이 있어요.`);
+        console.log(`  [건너뜀] ${filePath} 에 이미 haema-memory 설정이 있어요.`);
         return;
       }
       const updated = existing.replace(
-        /(votra-memory:[\s\S]*?command:\s*).+/,
+        /(haema-memory:[\s\S]*?command:\s*).+/,
         `$1${mcpServerBlock.command}`,
       );
       await fs.writeFile(filePath, updated, "utf8");
-      console.log(`  [업데이트] ${filePath} 의 votra-memory command 경로를 업데이트했어요.`);
+      console.log(`  [업데이트] ${filePath} 의 haema-memory command 경로를 업데이트했어요.`);
       return;
     }
 
     const block = `
 mcp_servers:
-  votra-memory:
+  haema-memory:
     command: ${mcpServerBlock.command}
     args: [${mcpServerBlock.args.join(", ")}]
 `;
     await fs.appendFile(filePath, block, "utf8");
-    console.log(`  [완료] ${filePath} 에 votra-memory 서버를 추가했어요.`);
+    console.log(`  [완료] ${filePath} 에 haema-memory 서버를 추가했어요.`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`  [실패] ${filePath} 수정 실패: ${msg}`);
@@ -353,11 +353,11 @@ async function injectInstruction(filePath: string, instruction: string, label: s
       // 없으면 생성
     }
 
-    if (existing.includes(VOTRA_MARKER)) {
-      const markerIdx = existing.indexOf(VOTRA_MARKER);
+    if (existing.includes(HAEMA_MARKER)) {
+      const markerIdx = existing.indexOf(HAEMA_MARKER);
       const updated = existing.slice(0, markerIdx) + instruction.trimStart();
       await fs.writeFile(filePath, updated, "utf8");
-      console.log(`  [업데이트] ${filePath} 의 votra-memory 지시문을 최신 버전으로 교체했어요.`);
+      console.log(`  [업데이트] ${filePath} 의 haema-memory 지시문을 최신 버전으로 교체했어요.`);
       return;
     }
 

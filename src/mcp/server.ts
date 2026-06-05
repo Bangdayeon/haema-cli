@@ -35,7 +35,7 @@ const cwdParam = {
 };
 
 function createServer(config: McpConfig | null, startCwd: string): McpServer {
-  const server = new McpServer({ name: "votra-memory", version: "1.0.0" });
+  const server = new McpServer({ name: "haema-memory", version: "1.0.0" });
 
   // 서버 시작 cwd 기준 projectId를 첫 툴 호출 시점에 한 번만 resolve (lazy).
   // undefined = 아직 조회 안 함, null = 조회했으나 미등록 프로젝트
@@ -50,7 +50,7 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
   const NOT_REGISTERED = {
     content: [{
       type: "text" as const,
-      text: "votra 프로젝트를 찾을 수 없어요. `signin` 툴로 로그인 상태를 확인해 주세요.",
+      text: "Haema 프로젝트를 찾을 수 없어요. `signin` 툴로 로그인 상태를 확인해 주세요.",
     }],
   };
 
@@ -361,7 +361,7 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
 
   server.tool(
     "upload_prompt",
-    "CLAUDE.md, AGENTS.md, SKILL.md 파일을 votra에 업로드해요. 프롬프트/스킬 파일을 최신 상태로 동기화할 때 사용해요.",
+    "CLAUDE.md, AGENTS.md, SKILL.md 파일을 Haema에 업로드해요. 프롬프트/스킬 파일을 최신 상태로 동기화할 때 사용해요.",
     {
       cwd: z.string().describe("프로젝트 절대경로"),
     },
@@ -373,7 +373,7 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
 
   server.tool(
     "apply_hooks",
-    "서버에서 프로젝트 SOP 훅을 가져와 로컬 Claude Code 설정에 적용해요. 반복 패턴에서 자동 생성된 훅 스크립트를 ~/.votra/hooks/에 배포하고 ~/.claude/settings.json에 등록해요.",
+    "서버에서 프로젝트 SOP 훅을 가져와 로컬 Claude Code 설정에 적용해요. 반복 패턴에서 자동 생성된 훅 스크립트를 ~/.haema/hooks/에 배포하고 ~/.claude/settings.json에 등록해요.",
     cwdParam,
     async (args) => {
       if (!config) return NOT_LOGGED_IN;
@@ -385,9 +385,9 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
 
   server.tool(
     "signin",
-    "votra 계정으로 로그인해요. 브라우저가 자동으로 열려요.",
+    "Haema 계정으로 로그인해요. 브라우저가 자동으로 열려요.",
     {
-      appUrl: z.string().optional().describe("votra 서버 URL (기본값: https://votra.jocodingax.ai)"),
+      appUrl: z.string().optional().describe("Haema 서버 URL (기본값: https://haema.jocodingax.ai)"),
     },
     async (args) => ({
       content: [{ type: "text" as const, text: await handleSignin(args) }],
@@ -431,7 +431,7 @@ export async function startHttp(port: number, config: McpConfig | null, cwd: str
   });
 
   httpServer.listen(port, "127.0.0.1", () => {
-    console.error(`votra-memory MCP HTTP 서버 실행 중: http://127.0.0.1:${port}/mcp`);
+    console.error(`haema-memory MCP HTTP 서버 실행 중: http://127.0.0.1:${port}/mcp`);
   });
 
   await new Promise<void>((_, reject) => {

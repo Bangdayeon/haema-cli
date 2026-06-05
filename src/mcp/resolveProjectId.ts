@@ -10,13 +10,13 @@ export async function resolveOrInitProject(cwd: string, config: McpConfig): Prom
   try {
     const res = await mcpPost<InitResponse>(config, "/api/memory/init-project", { cwd });
     if (res.ok) return res.projectId;
-    console.error(`[votra-memory] 프로젝트 초기화 실패: ${res.error}`);
+    console.error(`[haema-memory] 프로젝트 초기화 실패: ${res.error}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("401") || msg.includes("로그인")) {
-      console.error("[votra-memory] 인증 오류 — `signin` 툴로 로그인해주세요.");
+      console.error("[haema-memory] 인증 오류 — `signin` 툴로 로그인해주세요.");
     } else {
-      console.error(`[votra-memory] 프로젝트 연결 실패: ${msg}`);
+      console.error(`[haema-memory] 프로젝트 연결 실패: ${msg}`);
     }
   }
   return null;

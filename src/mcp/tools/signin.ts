@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { authFilePath, writeAuth } from "../../auth.js";
 import { openBrowser } from "../../openBrowser.js";
 
-const DEFAULT_APP_URL = "https://votra.jocodingax.ai";
+const DEFAULT_APP_URL = "https://haema.jocodingax.ai";
 const PORT_RANGE_START = 5180;
 const PORT_RANGE_END = 5189;
 const TIMEOUT_MS = 120_000;
@@ -12,12 +12,12 @@ const TIMEOUT_MS = 120_000;
 type CallbackResult = { token: string; email?: string };
 
 export async function handleSignin(args: { appUrl?: string }): Promise<string> {
-  const appUrl = stripTrailingSlash(args.appUrl ?? process.env.VOTRA_APP_URL ?? DEFAULT_APP_URL);
+  const appUrl = stripTrailingSlash(args.appUrl ?? process.env.HAEMA_APP_URL ?? DEFAULT_APP_URL);
 
   if (process.env.MOCK_AUTH === "true") {
     await writeAuth({
       appUrl,
-      apiKey: `votra_mock_${randomBytes(16).toString("hex")}`,
+      apiKey: `haema_mock_${randomBytes(16).toString("hex")}`,
       email: "dev@mock.local",
       signedInAt: new Date().toISOString(),
     });
