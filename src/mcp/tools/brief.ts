@@ -14,7 +14,8 @@ type RecentTask = { seq: number; title: string; status: string; updatedAt: strin
 type AiSummary = { summary: string; warnings: string[]; suggestions: string[] };
 type LongTermTask = { seq: number; title: string; lastAccessedAt: string | null };
 type ReflectionInsight = { type: string; text: string };
-type LatestReflection = { contextSummary: string | null; insights: ReflectionInsight[] };
+type ReflectionSuggestedTask = { title: string; reason: string; priority: "high" | "medium" | "low" };
+type LatestReflection = { contextSummary: string | null; insights: ReflectionInsight[]; suggestedTasks?: ReflectionSuggestedTask[] };
 
 type Brief = {
   projectTitle: string;
@@ -165,6 +166,17 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
       for (const ins of (r.insights ?? []).slice(0, 3)) {
         const label = ins.type === "pattern" ? "패턴" : ins.type === "risk" ? "위험" : "인사이트";
         lines.push(`- [${label}] ${ins.text}`);
+      }
+    }
+
+    // 에이전트 프로액티브 제안 항목
+    const suggested = r.suggestedTasks ?? [];
+    if (suggested.length > 0) {
+      lines.push(`\n[🔍 AI가 발견한 개선 필요 항목 — 유저가 요청하기 전에 먼저 탐색하고 해결책을 제안하세요]`);
+      lines.push(`[각 항목을 recall()로 관련 결정을 확인하고, 코드를 탐색한 뒤, 유저에게 발견한 내용과 제안을 먼저 말해주세요]`);
+      for (const t of suggested) {
+        const badge = t.priority === "high" ? "🔴" : t.priority === "medium" ? "🟡" : "🟢";
+        lines.push(`${badge} ${t.title} — ${t.reason}`);
       }
     }
   }
