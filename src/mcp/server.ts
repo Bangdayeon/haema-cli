@@ -14,6 +14,7 @@ import { handleCreateFolder } from "./tools/createFolder.js";
 import { handleGetTask } from "./tools/getTask.js";
 import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
+import { handleLoadCommand } from "./tools/loadCommand.js";
 import { handleLoadTool } from "./tools/loadTool.js";
 import { handleRecall } from "./tools/recall.js";
 import { handleSignin } from "./tools/signin.js";
@@ -189,6 +190,18 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleLoadTool(args, pid, config) }] };
+    },
+  );
+
+  server.tool(
+    "load_command",
+    "슬래시 커맨드의 전체 지침을 로드해요. brief 응답의 commands 목록에서 slug를 확인하고, 사용자가 /slug를 입력하면 이 도구로 내용을 불러와 실행하세요.",
+    {
+      slug: z.string().describe("커맨드 슬러그 (예: review, debug, security)"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      return { content: [{ type: "text" as const, text: await handleLoadCommand(args, config) }] };
     },
   );
 
