@@ -14,6 +14,7 @@ import { handleCreateFolder } from "./tools/createFolder.js";
 import { handleGetTask } from "./tools/getTask.js";
 import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
+import { handleCreateCommand } from "./tools/createCommand.js";
 import { handleLoadCommand } from "./tools/loadCommand.js";
 import { handleLoadTool } from "./tools/loadTool.js";
 import { handleUpdateCommand } from "./tools/updateCommand.js";
@@ -191,6 +192,32 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
       const pid = await resolveProject({ cwd: args.cwd, defaultProjectId: await getDefaultPid() }, config);
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleLoadTool(args, pid, config) }] };
+    },
+  );
+
+  server.tool(
+    "create_command",
+    `유저가 원하는 슬래시 커맨드를 대화로 만들어 저장해요.
+
+이 도구를 호출하기 전에 반드시 아래 순서를 따르세요:
+1. 유저에게 어떤 커맨드가 필요한지 아이디어를 먼저 물어보세요.
+2. 아이디어를 바탕으로 확인할 것들을 질문하세요.
+   - 커맨드 이름 (영어, 예: "api review", "style check")
+   - 어떤 상황에 쓸 것인지
+   - 어떤 동작·체크리스트·형식을 원하는지
+3. 내용 초안을 작성해 유저에게 먼저 보여주고 승인을 받으세요.
+4. 승인 후 이 도구를 호출하세요.
+
+승인 없이 바로 호출하지 마세요.`,
+    {
+      name: z.string().describe("커맨드 이름 (영어, 예: 'API Review')"),
+      description: z.string().describe("커맨드 한 줄 설명"),
+      folder: z.string().describe("커맨드 그룹 폴더명 (예: 코드 품질, 진단)"),
+      content: z.string().describe("에이전트가 따를 마크다운 지침 전문"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      return { content: [{ type: "text" as const, text: await handleCreateCommand(args, config) }] };
     },
   );
 
