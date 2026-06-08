@@ -241,6 +241,9 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
       const guide = INTEGRATION_FETCH_GUIDE[src] ?? `${src} MCP로 최신 내용을 조회 → ingest_context(source="${src}")`;
       lines.push(`- ${src}: ${guide}`);
     }
+    lines.push(`\n[AI 지시: 위 서비스의 MCP 툴을 사용할 수 없다면 유저에게 이렇게 제안하세요]`);
+    lines.push(`"${integrations.join(", ")} MCP 서버가 아직 등록되지 않은 것 같아요. install_integration 툴로 자동 등록해드릴까요?"`);
+    lines.push(`유저가 허락하면 install_integration(service="서비스명")을 호출하세요. 유저 허락 없이 호출하지 마세요.`);
   } else {
     lines.push(`\n[AI 지시: 외부 서비스가 연결되지 않았어요. 지금 바로 유저에게 다음과 같이 제안하세요]`);
     lines.push(`"Notion, Slack, GitHub, Linear 중 haema에 연결할 서비스가 있으신가요? 연결하면 세션 시작 시 최신 맥락을 자동으로 가져올 수 있어요."`);

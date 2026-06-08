@@ -25,6 +25,7 @@ import { handleStartTask } from "./tools/startTask.js";
 import { handleUpdateTask } from "./tools/updateTask.js";
 import { handleConfigureIntegrations } from "./tools/configureIntegrations.js";
 import { handleIngestContext } from "./tools/ingestContext.js";
+import { handleInstallIntegration } from "./tools/installIntegration.js";
 import { handleUploadPrompt } from "./tools/uploadPrompt.js";
 import { handleWhoami } from "./tools/whoami.js";
 
@@ -490,6 +491,19 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
       if (!pid) return NOT_REGISTERED;
       return { content: [{ type: "text" as const, text: await handleApplyHooks(pid, config) }] };
     },
+  );
+
+  server.tool(
+    "install_integration",
+    "외부 서비스(Notion, Slack, GitHub, Linear) MCP 서버를 Claude Code에 자동 등록해요. 유저가 서비스를 연결하겠다고 하면 먼저 허락을 받고 호출하세요.",
+    {
+      service: z
+        .enum(["notion", "slack", "github", "linear"])
+        .describe("등록할 서비스 이름"),
+    },
+    async (args) => ({
+      content: [{ type: "text" as const, text: await handleInstallIntegration(args) }],
+    }),
   );
 
   server.tool(
