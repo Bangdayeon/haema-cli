@@ -8,6 +8,7 @@ type DoneTask = { seq: number; title: string; outcome: string | null; keyDecisio
 type NextTask = { title: string; reason?: string; priority: "high" | "medium" | "low" };
 type Folder = { id: string; name: string; taskCount: number };
 type ProjectTool = { slug: string; name: string; folder: string; contextHint: string };
+type ProjectCommand = { slug: string; name: string; description: string };
 type ToolSuggestion = { name: string; description: string; folder: string; content: string; patternSummary: string };
 
 type RecentTask = { seq: number; title: string; status: string; updatedAt: string };
@@ -33,6 +34,7 @@ type Brief = {
   latestReflection?: LatestReflection;
   memoryContext?: string | null;
   enabledIntegrations?: string[];
+  commands?: ProjectCommand[];
 };
 
 type BriefResponse = { ok: true; brief: Brief } | { ok: false; error: string };
@@ -204,6 +206,19 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
         lines.push(`- ${t.slug}: ${t.name} — ${t.contextHint}`);
       }
     }
+  }
+
+  // 슬래시 커맨드
+  if (b.commands && b.commands.length > 0) {
+    lines.push(`\n슬래시 커맨드 (load_command로 로드):`);
+    for (const c of b.commands) {
+      lines.push(`- /${c.slug}: ${c.name} — ${c.description}`);
+    }
+    lines.push(`[AI 지시] 유저가 커맨드 동작이 이상하다고 하면:`);
+    lines.push(`1. load_command(slug)로 현재 내용을 로드하세요.`);
+    lines.push(`2. 문제 원인을 파악하고 수정 방향을 유저에게 먼저 제안하세요.`);
+    lines.push(`3. 유저가 승인하면 update_command(slug, newContent)로 반영하세요.`);
+    lines.push(`승인 없이 커맨드 내용을 수정하지 마세요.`);
   }
 
   // 툴 제안 (패턴 감지됨)

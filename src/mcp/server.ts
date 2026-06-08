@@ -16,6 +16,7 @@ import { handleFinishTask } from "./tools/finishTask.js";
 import { handleListTasks } from "./tools/listTasks.js";
 import { handleLoadCommand } from "./tools/loadCommand.js";
 import { handleLoadTool } from "./tools/loadTool.js";
+import { handleUpdateCommand } from "./tools/updateCommand.js";
 import { handleRecall } from "./tools/recall.js";
 import { handleSignin } from "./tools/signin.js";
 import { handleSignout } from "./tools/signout.js";
@@ -202,6 +203,19 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
     async (args) => {
       if (!config) return NOT_LOGGED_IN;
       return { content: [{ type: "text" as const, text: await handleLoadCommand(args, config) }] };
+    },
+  );
+
+  server.tool(
+    "update_command",
+    "슬래시 커맨드의 내용을 수정해요. 반드시 유저에게 수정 방향을 먼저 제안하고 승인을 받은 뒤에만 호출하세요.",
+    {
+      slug: z.string().describe("수정할 커맨드 슬러그 (예: review, debug)"),
+      content: z.string().describe("새 커맨드 내용 (마크다운 지침 전문)"),
+    },
+    async (args) => {
+      if (!config) return NOT_LOGGED_IN;
+      return { content: [{ type: "text" as const, text: await handleUpdateCommand(args, config) }] };
     },
   );
 
