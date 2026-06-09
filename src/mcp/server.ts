@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
+import { readAuth } from "../auth.js";
 import type { McpConfig } from "./mcpClient.js";
 import { resolveOrInitProject, resolveProject } from "./resolveProjectId.js";
 import { handleAddTask } from "./tools/addTask.js";
@@ -512,9 +513,15 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
     {
       appUrl: z.string().optional().describe("Haema 서버 URL (기본값: https://haema.jocodingax.ai)"),
     },
-    async (args) => ({
-      content: [{ type: "text" as const, text: await handleSignin(args) }],
-    }),
+    async (args) => {
+      const text = await handleSignin(args);
+      const auth = await readAuth();
+      if (auth) {
+        config = { appUrl: auth.appUrl, apiKey: auth.apiKey };
+        defaultProjectId = undefined;
+      }
+      return { content: [{ type: "text" as const, text }] };
+    },
   );
 
   server.tool(
@@ -530,9 +537,12 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
     "signout",
     "현재 계정에서 로그아웃해요.",
     {},
-    async () => ({
-      content: [{ type: "text" as const, text: await handleSignout() }],
-    }),
+    async () => {
+      const text = await handleSignout();
+      config = null;
+      defaultProjectId = undefined;
+      return { content: [{ type: "text" as const, text }] };
+    },
   );
 
   return server;
