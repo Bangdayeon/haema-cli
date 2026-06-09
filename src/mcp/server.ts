@@ -431,16 +431,12 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
 
   server.tool(
     "ingest_context",
-    "Notion·Slack·GitHub 등 외부 서비스의 맥락을 Haema 메모리에 저장해요. AI가 핵심 결정을 추출해 recall 검색 대상에 추가해요.",
+    "Notion·Slack·GitHub 등 외부 서비스에서 읽은 내용을 Haema 브레인에 저장해요. 다음 AI reflection 때 insight로 추출돼요.",
     {
       ...cwdParam,
-      title: z.string().describe("맥락 제목 (예: Notion 페이지 제목, Slack 채널 + 날짜)"),
-      content: z.string().max(8000).describe("저장할 내용 전문 (최대 8000자)"),
-      source: z.string().describe('출처 식별자 (예: "notion", "slack", "github", "meeting")'),
-      type: z
-        .enum(["decision", "insight", "reference"])
-        .optional()
-        .describe("맥락 유형: decision=결정사항(기본), insight=인사이트, reference=참고자료"),
+      content: z.string().max(10000).describe("저장할 내용 전문 (최대 10000자)"),
+      source: z.enum(["notion", "slack", "github", "linear"]).describe('출처 서비스 (notion | slack | github | linear)'),
+      sourceUrl: z.string().optional().describe("원본 URL (Notion 페이지, GitHub 이슈 등)"),
     },
     async (args) => {
       if (!config) return NOT_LOGGED_IN;
@@ -450,7 +446,7 @@ function createServer(config: McpConfig | null, startCwd: string): McpServer {
         content: [{
           type: "text" as const,
           text: await handleIngestContext(
-            { title: args.title, content: args.content, source: args.source, type: args.type },
+            { content: args.content, source: args.source, sourceUrl: args.sourceUrl },
             pid,
             config,
           ),

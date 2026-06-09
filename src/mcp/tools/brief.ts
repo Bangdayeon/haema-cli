@@ -18,6 +18,12 @@ type ReflectionInsight = { type: string; text: string };
 type ReflectionSuggestedTask = { title: string; reason: string; priority: "high" | "medium" | "low" };
 type LatestReflection = { contextSummary: string | null; insights: ReflectionInsight[]; suggestedTasks?: ReflectionSuggestedTask[] };
 
+type IntegrationInstruction = {
+  source: string;
+  mcpTools: string[];
+  instruction: string;
+};
+
 type Brief = {
   projectTitle: string;
   cwd: string | null;
@@ -34,6 +40,7 @@ type Brief = {
   latestReflection?: LatestReflection;
   memoryContext?: string | null;
   enabledIntegrations?: string[];
+  integrationInstructions?: IntegrationInstruction[];
   commands?: ProjectCommand[];
 };
 
@@ -233,13 +240,23 @@ export async function handleBrief(projectId: string, config: McpConfig): Promise
 
   // 연결된 외부 서비스
   const integrations = b.enabledIntegrations ?? [];
+  const instrMap = new Map<string, IntegrationInstruction>(
+    (b.integrationInstructions ?? []).map((i) => [i.source, i]),
+  );
   if (integrations.length > 0) {
     lines.push(`\n## 연결된 외부 서비스`);
     lines.push(`${integrations.join(", ")} 활성화됨.`);
     lines.push(`\n[AI 지시: 세션 시작 시 아래 서비스에서 최신 맥락을 가져와 ingest_context로 저장하세요]`);
     for (const src of integrations) {
-      const guide = INTEGRATION_FETCH_GUIDE[src] ?? `${src} MCP로 최신 내용을 조회 → ingest_context(source="${src}")`;
-      lines.push(`- ${src}: ${guide}`);
+      const instr = instrMap.get(src);
+      if (instr) {
+        lines.push(`- ${src}:`);
+        lines.push(`  사용 MCP 툴: ${instr.mcpTools.join(", ")}`);
+        lines.push(`  읽은 후 ingest_context(source="${src}", content=...) 를 호출해 haema에 저장하세요.`);
+      } else {
+        const guide = INTEGRATION_FETCH_GUIDE[src] ?? `${src} MCP로 최신 내용을 조회 → ingest_context(source="${src}")`;
+        lines.push(`- ${src}: ${guide}`);
+      }
     }
     lines.push(`\n[AI 지시: 위 서비스의 MCP 툴을 사용할 수 없다면 유저에게 이렇게 제안하세요]`);
     lines.push(`"${integrations.join(", ")} MCP 서버가 아직 등록되지 않은 것 같아요. install_integration 툴로 자동 등록해드릴까요?"`);

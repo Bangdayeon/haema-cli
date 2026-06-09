@@ -1,22 +1,24 @@
 import type { McpConfig } from "../mcpClient.js";
 import { mcpPost } from "../mcpClient.js";
 
-type IngestContextResponse =
-  | { ok: true; task: { seq: number; title: string }; extractedDecisions: number }
+type IngestResponse =
+  | { ok: true; id: string; duplicate: boolean }
   | { ok: false; error: string };
 
 export async function handleIngestContext(
-  args: { title: string; content: string; source: string; type?: string },
+  args: { content: string; source: string; sourceUrl?: string },
   projectId: string,
   config: McpConfig,
 ): Promise<string> {
-  const data = await mcpPost<IngestContextResponse>(config, "/api/memory/ingest-context", {
+  const data = await mcpPost<IngestResponse>(config, "/api/memory/ingest", {
     projectId,
-    title: args.title,
-    content: args.content,
     source: args.source,
-    type: args.type,
+    content: args.content,
+    sourceUrl: args.sourceUrl,
   });
   if (!data.ok) throw new Error(data.error);
-  return `외부 맥락 저장됨: #${data.task.seq} "${data.task.title}" [${args.source}] — 핵심 결정 ${data.extractedDecisions}개 추출됨. recall("${args.title}")로 검색해요.`;
+  if (data.duplicate) {
+    return `[${args.source}] 이미 저장된 동일한 내용이에요. (중복 skip)`;
+  }
+  return `[${args.source}] 외부 맥락 저장됨. 다음 reflection 때 AI가 분석해 insight를 추출해요.`;
 }
