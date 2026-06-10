@@ -1,6 +1,6 @@
 {
   "name": "@haema/cli",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "haema 세션 간 연결을 위한 MCP 서버",
   "license": "MIT",
   "type": "module",
